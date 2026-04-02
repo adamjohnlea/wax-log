@@ -27,6 +27,9 @@ struct ToolsView: View {
                 // Sync actions
                 syncActionsSection
 
+                // Artwork backfill
+                artworkBackfillSection
+
                 // Image cache
                 imageCacheSection
 
@@ -155,6 +158,30 @@ struct ToolsView: View {
 
     private var unenrichedCount: Int {
         allReleases.count - enrichedReleases.count
+    }
+
+    // MARK: - Artwork Backfill
+
+    private var artworkBackfillSection: some View {
+        GroupBox("Artwork Backfill") {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    VStack(alignment: .leading) {
+                        Text("Download Additional Artwork")
+                            .font(.callout.weight(.medium))
+                        Text("Download back covers, inserts, and other images for enriched releases. Respects the 1000/day Discogs limit.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Backfill All") {
+                        Task { await syncService.backfillAllImages() }
+                    }
+                    .disabled(syncService.isSyncing || enrichedReleases.isEmpty)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     // MARK: - Image Cache
@@ -299,6 +326,9 @@ struct SyncProgressView: View {
                 case .enriching:
                     Image(systemName: "sparkles")
                         .foregroundStyle(.orange)
+                case .backfillingImages:
+                    Image(systemName: "photo.on.rectangle.angled")
+                        .foregroundStyle(.teal)
                 case .complete:
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(.green)
@@ -332,6 +362,7 @@ struct SyncProgressView: View {
     private var progressTint: Color {
         switch progress.phase {
         case .fetchingCollection: .blue
+        case .backfillingImages: .teal
         case .fetchingWantlist: .purple
         case .enriching: .orange
         case .complete: .green

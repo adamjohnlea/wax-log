@@ -21,6 +21,22 @@ extension Release {
         let value: String
     }
 
+    struct ImageInfo {
+        let type: String
+        let uri: String
+        let uri150: String
+        let width: Int
+        let height: Int
+
+        var typeLabel: String {
+            switch type {
+            case "primary": "Primary"
+            case "secondary": "Secondary"
+            default: type.capitalized
+            }
+        }
+    }
+
     var decodedTracklist: [TrackInfo]? {
         guard let tracklist, let data = tracklist.data(using: .utf8),
               let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
@@ -60,6 +76,47 @@ extension Release {
                   let value = dict["value"] as? String else { return nil }
             return IdentifierInfo(type: type, value: value)
         }
+    }
+
+    var decodedAdditionalImages: [ImageInfo]? {
+        guard let additionalImages, let data = additionalImages.data(using: .utf8),
+              let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            return nil
+        }
+        return array.compactMap { dict in
+            guard let type = dict["type"] as? String,
+                  let uri = dict["uri"] as? String else { return nil }
+            return ImageInfo(
+                type: type,
+                uri: uri,
+                uri150: dict["uri150"] as? String ?? "",
+                width: dict["width"] as? Int ?? 0,
+                height: dict["height"] as? Int ?? 0
+            )
+        }
+    }
+
+    /// All images: primary (from imageURL) + additional images
+    var allImages: [ImageInfo] {
+        var images: [ImageInfo] = []
+        if let url = imageURL, !url.isEmpty {
+            images.append(ImageInfo(type: "primary", uri: url, uri150: "", width: 0, height: 0))
+        }
+        if let additional = decodedAdditionalImages {
+            images.append(contentsOf: additional)
+        }
+        return images
+    }
+
+    /// Artist name with Discogs disambiguation numbers stripped for display.
+    /// e.g. "Jack White (2)" → "Jack White", "Wynton Marsalis, Edita Gruberova, Ray... (3)" → "Wynton Marsalis, Edita Gruberova, Ray..."
+    var displayArtist: String {
+        guard let artist, !artist.isEmpty else { return "Unknown Artist" }
+        // Remove trailing " (N)" from each comma-separated artist
+        return artist
+            .components(separatedBy: ", ")
+            .map { $0.replacingOccurrences(of: #"\s*\(\d+\)$"#, with: "", options: .regularExpression) }
+            .joined(separator: ", ")
     }
 
     var displayYear: String {

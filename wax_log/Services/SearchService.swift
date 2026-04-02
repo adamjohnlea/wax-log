@@ -147,7 +147,7 @@ enum SearchService {
     // MARK: - Full Text
 
     private static func fullTextPredicate(for term: String) -> NSPredicate {
-        let fields = ["artist", "title", "label", "genre", "style", "notes", "personalNotes", "tracklist"]
+        let fields = ["artist", "title", "label", "genre", "style", "country", "personalNotes"]
         let subpredicates = fields.map { field in
             NSPredicate(format: "%K CONTAINS[cd] %@", field, term)
         }

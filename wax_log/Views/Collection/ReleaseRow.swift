@@ -12,7 +12,7 @@ struct ReleaseRow: View {
                     .font(.body)
                     .lineLimit(1)
 
-                Text(release.artist ?? "Unknown Artist")
+                Text(release.displayArtist)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

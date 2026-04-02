@@ -156,6 +156,54 @@ actor ImageCacheService {
         }
     }
 
+    // MARK: - Additional Images
+
+    /// Download a specific additional image for a release. Returns the local filename.
+    func downloadAdditionalImage(discogsId: Int64, imageIndex: Int, url: URL) async -> String? {
+        let filename = "\(discogsId)_\(imageIndex).jpg"
+        let fileURL = cacheDirectory.appendingPathComponent(filename)
+
+        // Skip if already cached
+        guard !fileManager.fileExists(atPath: fileURL.path) else { return filename }
+        guard canDownloadToday() else { return nil }
+
+        await throttle()
+        incrementDailyCount()
+
+        do {
+            let (data, response) = try await session.data(from: url)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode),
+                  NSImage(data: data) != nil else {
+                return nil
+            }
+            try data.write(to: fileURL, options: .atomic)
+            return filename
+        } catch {
+            return nil
+        }
+    }
+
+    /// Load a cached additional image from disk.
+    func additionalImage(discogsId: Int64, imageIndex: Int) -> NSImage? {
+        let filename = "\(discogsId)_\(imageIndex).jpg"
+        let fileURL = cacheDirectory.appendingPathComponent(filename)
+        return NSImage(contentsOf: fileURL)
+    }
+
+    /// Check if an additional image is already cached.
+    func hasAdditionalImage(discogsId: Int64, imageIndex: Int) -> Bool {
+        let filename = "\(discogsId)_\(imageIndex).jpg"
+        let fileURL = cacheDirectory.appendingPathComponent(filename)
+        return fileManager.fileExists(atPath: fileURL.path)
+    }
+
+    var remainingDailyDownloads: Int {
+        resetDailyCountIfNeeded()
+        let count = UserDefaults.standard.integer(forKey: "imageDailyCount")
+        return max(0, dailyCap - count)
+    }
+
     // MARK: - Cache Management
 
     var cacheSize: Int64 {

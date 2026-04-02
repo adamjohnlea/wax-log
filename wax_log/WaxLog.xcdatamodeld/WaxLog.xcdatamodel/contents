@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="23231" systemVersion="25E143" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithCloudKit="YES">
     <entity name="Release" representedClassName="Release" syncable="YES" codeGenerationType="class">
+        <attribute name="additionalImages" optional="YES" attributeType="String"/>
         <attribute name="artist" attributeType="String" defaultValueString=""/>
         <attribute name="barcode" optional="YES" attributeType="String"/>
         <attribute name="country" attributeType="String" defaultValueString=""/>

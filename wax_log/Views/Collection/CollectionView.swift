@@ -7,7 +7,6 @@ struct CollectionView: View {
     @State private var sortOrder: SortOrder = .dateAdded
     @State private var viewMode: ViewMode = .list
     @State private var searchText = ""
-    @State private var showingAdvancedSearch = false
 
     @FetchRequest private var releases: FetchedResults<Release>
 
@@ -20,15 +19,23 @@ struct CollectionView: View {
         )
     }
 
+    private var filteredReleases: [Release] {
+        guard !searchText.isEmpty else { return Array(releases) }
+        let query = searchText.lowercased()
+        return releases.filter { release in
+            (release.artist ?? "").lowercased().contains(query)
+        }
+    }
+
     var body: some View {
         Group {
-            if releases.isEmpty && searchText.isEmpty {
+            if filteredReleases.isEmpty && searchText.isEmpty {
                 ContentUnavailableView(
                     listType == "collection" ? "No Releases" : "Wantlist Empty",
                     systemImage: listType == "collection" ? "music.note.house" : "heart",
                     description: Text("Use Tools > Sync to import your Discogs \(listType).")
                 )
-            } else if releases.isEmpty && !searchText.isEmpty {
+            } else if filteredReleases.isEmpty && !searchText.isEmpty {
                 ContentUnavailableView.search(text: searchText)
             } else {
                 switch viewMode {
@@ -39,15 +46,21 @@ struct CollectionView: View {
                 }
             }
         }
-        .searchable(text: $searchText, prompt: "Search \(listType)... (use artist:, genre:, year: for advanced)")
         .navigationTitle(listType == "collection" ? "My Collection" : "Wantlist")
-        .navigationSubtitle("\(releases.count) releases")
+        .navigationSubtitle("\(filteredReleases.count) releases")
         .toolbar {
             ToolbarItemGroup {
-                Button {
-                    showingAdvancedSearch = true
-                } label: {
-                    Label("Advanced Search", systemImage: "line.3.horizontal.decrease.circle")
+                TextField("Search by artist...", text: $searchText)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 200)
+
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                    }
+                    .buttonStyle(.borderless)
                 }
 
                 sortMenu
@@ -62,30 +75,24 @@ struct CollectionView: View {
         .onChange(of: sortOrder) {
             releases.nsSortDescriptors = sortOrder.descriptors
         }
-        .onChange(of: searchText) {
-            applySearch()
-        }
-        .sheet(isPresented: $showingAdvancedSearch) {
-            AdvancedSearchView(searchText: $searchText)
-        }
-    }
-
-    // MARK: - Search
-
-    private func applySearch() {
-        if searchText.isEmpty {
-            releases.nsPredicate = NSPredicate(format: "listType == %@", listType)
-        } else {
-            releases.nsPredicate = SearchService.predicate(from: searchText, listType: listType)
-        }
     }
 
     // MARK: - List View
 
     private var listView: some View {
-        List(releases, id: \.objectID) { release in
-            NavigationLink(value: release.objectID) {
-                ReleaseRow(release: release)
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(filteredReleases, id: \.objectID) { release in
+                    NavigationLink(value: release.objectID) {
+                        ReleaseRow(release: release)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                    }
+                    .buttonStyle(.plain)
+                    Divider().padding(.leading, 64)
+                }
             }
         }
     }
@@ -95,7 +102,7 @@ struct CollectionView: View {
     private var gridView: some View {
         ScrollView {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 180, maximum: 220))], spacing: 16) {
-                ForEach(releases, id: \.objectID) { release in
+                ForEach(filteredReleases, id: \.objectID) { release in
                     NavigationLink(value: release.objectID) {
                         ReleaseCard(release: release)
                     }

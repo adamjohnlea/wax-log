@@ -7,7 +7,10 @@ struct TracksTab: View {
     @State private var appleMusicAlbum: Album?
     @State private var appleMusicTracks: [Track]?
     @State private var isLoadingAppleMusic = false
+    @State private var appleMusicError: String?
     @State private var musicAuthStatus: MusicAuthorization.Status = MusicAuthorization.currentStatus
+    @State private var playingTrackIndex: Int?
+    @State private var isPlaying = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -72,7 +75,10 @@ struct TracksTab: View {
             // Apple Music section
             appleMusicSection
         }
-        .task {
+        .task(id: release.discogsId) {
+            appleMusicAlbum = nil
+            appleMusicTracks = nil
+            appleMusicError = nil
             musicAuthStatus = MusicAuthorization.currentStatus
             if musicAuthStatus == .authorized {
                 await loadAppleMusicMatch()
@@ -117,20 +123,34 @@ struct TracksTab: View {
                     } else if let album = appleMusicAlbum {
                         appleMusicAlbumView(album)
                     } else {
-                        HStack {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundStyle(.secondary)
-                            Text("No match found on Apple Music")
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Image(systemName: "magnifyingglass")
+                                    .foregroundStyle(.secondary)
+                                Text("No match found on Apple Music")
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
 
-                            Spacer()
+                                Spacer()
 
-                            Button("Retry") {
-                                Task { await loadAppleMusicMatch() }
+                                Button("Retry") {
+                                    appleMusicError = nil
+                                    Task { await loadAppleMusicMatch() }
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
                             }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
+
+                            if let error = appleMusicError {
+                                Text("Error: \(error)")
+                                    .font(.caption)
+                                    .foregroundStyle(.red)
+                                    .textSelection(.enabled)
+                            }
+
+                            Text("Searched: \(release.artist ?? "?") — \(release.title ?? "?")")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
                         }
                     }
 
@@ -183,15 +203,45 @@ struct TracksTab: View {
             if let tracks = appleMusicTracks, !tracks.isEmpty {
                 Divider()
 
+                // Playback controls
+                if isPlaying || playingTrackIndex != nil {
+                    HStack {
+                        Button {
+                            togglePlayPause()
+                        } label: {
+                            Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                        }
+                        .buttonStyle(.borderless)
+
+                        if let index = playingTrackIndex, index < tracks.count {
+                            Text("Now playing: \(tracks[index].title)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+
+                        Spacer()
+
+                        Button {
+                            stopPlayback()
+                        } label: {
+                            Image(systemName: "stop.fill")
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                    .padding(.vertical, 4)
+                    Divider()
+                }
+
                 VStack(spacing: 0) {
                     ForEach(Array(tracks.enumerated()), id: \.offset) { index, track in
                         HStack {
                             Button {
-                                playTrack(track)
+                                playTrack(track, at: index)
                             } label: {
-                                Image(systemName: "play.circle")
+                                Image(systemName: playingTrackIndex == index && isPlaying ? "speaker.wave.2.fill" : "play.circle")
                                     .font(.title3)
-                                    .foregroundStyle(.pink)
+                                    .foregroundStyle(playingTrackIndex == index ? .pink : .secondary)
                             }
                             .buttonStyle(.plain)
 
@@ -202,6 +252,7 @@ struct TracksTab: View {
 
                             Text(track.title)
                                 .font(.callout)
+                                .fontWeight(playingTrackIndex == index ? .medium : .regular)
                                 .lineLimit(1)
 
                             Spacer()
@@ -227,31 +278,57 @@ struct TracksTab: View {
 
     private func loadAppleMusicMatch() async {
         isLoadingAppleMusic = true
-        let barcode = release.barcode
+        appleMusicError = nil
         let artist = release.artist
         let title = release.title
         let discogsId = release.discogsId
 
-        appleMusicAlbum = await AppleMusicService.shared.findAlbum(
-            barcode: barcode,
-            artist: artist,
-            title: title,
-            discogsId: discogsId
-        )
+        do {
+            appleMusicAlbum = try await AppleMusicService.shared.findAlbum(
+                artist: artist,
+                title: title,
+                discogsId: discogsId
+            )
 
-        if let album = appleMusicAlbum {
-            appleMusicTracks = await AppleMusicService.shared.getTracks(for: album)
+            if let album = appleMusicAlbum {
+                appleMusicTracks = await AppleMusicService.shared.getTracks(for: album)
+            }
+        } catch {
+            appleMusicError = "\(error)"
         }
 
         isLoadingAppleMusic = false
     }
 
-    private func playTrack(_ track: Track) {
+    private func playTrack(_ track: Track, at index: Int) {
+        playingTrackIndex = index
+        isPlaying = true
         Task {
             let player = ApplicationMusicPlayer.shared
             player.queue = [track]
             try? await player.play()
         }
+    }
+
+    private func togglePlayPause() {
+        let player = ApplicationMusicPlayer.shared
+        if isPlaying {
+            player.pause()
+            isPlaying = false
+        } else {
+            Task {
+                try? await player.play()
+                isPlaying = true
+            }
+        }
+    }
+
+    private func stopPlayback() {
+        let player = ApplicationMusicPlayer.shared
+        player.pause()
+        player.queue = []
+        isPlaying = false
+        playingTrackIndex = nil
     }
 
     private func openInAppleMusic(_ album: Album) {

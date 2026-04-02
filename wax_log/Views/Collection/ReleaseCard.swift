@@ -12,7 +12,7 @@ struct ReleaseCard: View {
                     .font(.callout.weight(.medium))
                     .lineLimit(1)
 
-                Text(release.artist ?? "Unknown Artist")
+                Text(release.displayArtist)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

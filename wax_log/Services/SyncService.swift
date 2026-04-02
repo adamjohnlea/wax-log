@@ -114,9 +114,7 @@ final class SyncService {
                 release.rating = Int16(item.rating)
                 release.listType = "collection"
 
-                if release.dateAdded == nil {
-                    release.dateAdded = ISO8601DateFormatter().date(from: item.dateAdded) ?? Date()
-                }
+                release.dateAdded = self.parseDiscogsDate(item.dateAdded) ?? release.dateAdded ?? Date()
 
                 // Extract media/sleeve condition from notes fields
                 if let notes = item.notes {
@@ -184,9 +182,7 @@ final class SyncService {
                 release.listType = "wantlist"
                 release.personalNotes = item.notes
 
-                if release.dateAdded == nil {
-                    release.dateAdded = ISO8601DateFormatter().date(from: item.dateAdded) ?? Date()
-                }
+                release.dateAdded = self.parseDiscogsDate(item.dateAdded) ?? release.dateAdded ?? Date()
             }
 
             if context.hasChanges {
@@ -291,6 +287,20 @@ final class SyncService {
                             release.imageURL = primaryImage.uri
                         }
 
+                        // Store all non-primary images
+                        if let images = detail.images {
+                            let additional = images.filter { $0.type != "primary" }
+                            if !additional.isEmpty {
+                                let imageData: [[String: Any]] = additional.map { img in
+                                    ["type": img.type, "uri": img.uri, "uri150": img.uri150, "width": img.width, "height": img.height]
+                                }
+                                if let json = try? JSONSerialization.data(withJSONObject: imageData),
+                                   let jsonString = String(data: json, encoding: .utf8) {
+                                    release.additionalImages = jsonString
+                                }
+                            }
+                        }
+
                         release.enriched = true
 
                         try? context.save()
@@ -376,12 +386,94 @@ final class SyncService {
                     release.imageURL = primaryImage.uri
                 }
 
+                if let images = detail.images {
+                    let additional = images.filter { $0.type != "primary" }
+                    if !additional.isEmpty {
+                        let imageData: [[String: Any]] = additional.map { img in
+                            ["type": img.type, "uri": img.uri, "uri150": img.uri150, "width": img.width, "height": img.height]
+                        }
+                        if let json = try? JSONSerialization.data(withJSONObject: imageData),
+                           let jsonString = String(data: json, encoding: .utf8) {
+                            release.additionalImages = jsonString
+                        }
+                    }
+                }
+
                 release.enriched = true
                 try? context.save()
             }
         } catch {
             // Silently fail for single enrichment
         }
+    }
+
+    // MARK: - Image Backfill
+
+    func backfillAllImages() async {
+        guard !isSyncing else { return }
+        isSyncing = true
+        lastError = nil
+
+        let context = persistenceController.container.viewContext
+        let request = NSFetchRequest<Release>(entityName: "Release")
+        request.predicate = NSPredicate(format: "enriched == YES AND additionalImages != nil")
+        request.sortDescriptors = [NSSortDescriptor(keyPath: \Release.dateAdded, ascending: false)]
+
+        do {
+            let releases = try context.fetch(request)
+            var totalImages = 0
+            var downloaded = 0
+
+            // Count total images to download
+            for release in releases {
+                if let images = release.decodedAdditionalImages {
+                    for (index, _) in images.enumerated() {
+                        if await !ImageCacheService.shared.hasAdditionalImage(discogsId: release.discogsId, imageIndex: index) {
+                            totalImages += 1
+                        }
+                    }
+                }
+            }
+
+            guard totalImages > 0 else {
+                syncProgress = SyncProgress(phase: .complete, current: 0, total: 0, message: "All artwork already downloaded!")
+                isSyncing = false
+                return
+            }
+
+            syncProgress = SyncProgress(phase: .backfillingImages, current: 0, total: totalImages, message: "Downloading artwork...")
+
+            for release in releases {
+                guard let images = release.decodedAdditionalImages else { continue }
+                let discogsId = release.discogsId
+
+                for (index, image) in images.enumerated() {
+                    if await ImageCacheService.shared.hasAdditionalImage(discogsId: discogsId, imageIndex: index) {
+                        continue
+                    }
+
+                    guard await ImageCacheService.shared.remainingDailyDownloads > 0 else {
+                        syncProgress = SyncProgress(phase: .complete, current: downloaded, total: totalImages, message: "Daily image limit reached. \(downloaded) downloaded.")
+                        isSyncing = false
+                        return
+                    }
+
+                    if let url = URL(string: image.uri) {
+                        _ = await ImageCacheService.shared.downloadAdditionalImage(discogsId: discogsId, imageIndex: index, url: url)
+                    }
+
+                    downloaded += 1
+                    syncProgress = SyncProgress(phase: .backfillingImages, current: downloaded, total: totalImages, message: "Downloading artwork... \(downloaded)/\(totalImages)")
+                }
+            }
+
+            syncProgress = SyncProgress(phase: .complete, current: downloaded, total: totalImages, message: "Artwork download complete! \(downloaded) images.")
+        } catch {
+            lastError = error.localizedDescription
+            syncProgress = SyncProgress(phase: .error, current: 0, total: 0, message: error.localizedDescription)
+        }
+
+        isSyncing = false
     }
 
     // MARK: - Push to Discogs
@@ -447,10 +539,21 @@ final class SyncService {
         let release = Release(context: context)
         release.discogsId = discogsId
         release.listType = listType
-        release.dateAdded = Date()
         release.enriched = false
         release.country = ""
         return release
+    }
+
+    private func parseDiscogsDate(_ dateString: String) -> Date? {
+        // Discogs format: "2022-05-01T12:29:03-07:00"
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        if let date = formatter.date(from: dateString) {
+            return date
+        }
+        // Try with fractional seconds
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.date(from: dateString)
     }
 
     var lastSyncDate: Date? {
@@ -465,6 +568,7 @@ struct SyncProgress {
         case fetchingCollection
         case fetchingWantlist
         case enriching
+        case backfillingImages
         case complete
         case error
     }

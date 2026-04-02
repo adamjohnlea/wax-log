@@ -33,7 +33,7 @@ struct RandomizerView: View {
                             .font(.title.bold())
                             .multilineTextAlignment(.center)
 
-                        Text(release.artist ?? "Unknown Artist")
+                        Text(release.displayArtist)
                             .font(.title2)
                             .foregroundStyle(.secondary)
 

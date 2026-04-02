@@ -19,6 +19,7 @@ struct ReleaseDetailView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .labelsHidden()
             .padding(.horizontal)
             .padding(.vertical, 8)
 
@@ -34,6 +35,8 @@ struct ReleaseDetailView: View {
                         TracksTab(release: release)
                     case .credits:
                         CreditsTab(release: release)
+                    case .artwork:
+                        ArtworkTab(release: release)
                     case .notes:
                         NotesTab(release: release)
                     }
@@ -54,7 +57,7 @@ struct ReleaseDetailView: View {
                 Text(release.title ?? "Untitled")
                     .font(.title.bold())
 
-                Text(release.artist ?? "Unknown Artist")
+                Text(release.displayArtist)
                     .font(.title2)
                     .foregroundStyle(.secondary)
 
@@ -89,13 +92,14 @@ struct ReleaseDetailView: View {
 // MARK: - Tab Enum
 
 enum DetailTab: CaseIterable {
-    case overview, tracks, credits, notes
+    case overview, tracks, credits, artwork, notes
 
     var label: String {
         switch self {
         case .overview: "Overview"
         case .tracks: "Tracks"
         case .credits: "Credits"
+        case .artwork: "Artwork"
         case .notes: "Notes"
         }
     }

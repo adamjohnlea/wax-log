@@ -4,8 +4,8 @@ import MusicKit
 actor AppleMusicService {
     static let shared = AppleMusicService()
 
-    // Cache: discogsId -> Apple Music album ID
-    private var matchCache: [Int64: String] = [:]
+    // Cache: discogsId -> Apple Music album ID (nil = searched but not found)
+    private var matchCache: [Int64: String?] = [:]
 
     private init() {}
 
@@ -22,81 +22,113 @@ actor AppleMusicService {
 
     // MARK: - Album Matching
 
-    /// Attempts to find an Apple Music album matching a release, first by barcode (UPC), then by artist + title.
-    func findAlbum(barcode: String?, artist: String?, title: String?, discogsId: Int64) async -> Album? {
-        // Check cache
-        if let cachedId = matchCache[discogsId] {
-            return await fetchAlbumById(cachedId)
-        }
-
-        // 1. Try UPC/barcode match (most accurate)
-        if let barcode = barcode, !barcode.isEmpty {
-            if let album = await searchByUPC(barcode) {
-                matchCache[discogsId] = album.id.rawValue
-                return album
+    /// Finds an Apple Music album. Throws on API errors so callers can display them.
+    func findAlbum(artist: String?, title: String?, discogsId: Int64) async throws -> Album? {
+        // Check cache (including negative cache)
+        if let cached = matchCache[discogsId] {
+            if let albumId = cached {
+                return await fetchAlbumById(albumId)
             }
+            return nil
         }
 
-        // 2. Fall back to artist + title search
-        if let artist = artist, let title = title, !artist.isEmpty, !title.isEmpty {
-            if let album = await searchByArtistTitle(artist: artist, title: title) {
-                matchCache[discogsId] = album.id.rawValue
-                return album
-            }
+        guard let artist = artist, let title = title, !artist.isEmpty, !title.isEmpty else {
+            return nil
         }
 
+        let cleanArtist = cleanArtistName(artist)
+
+        guard !cleanArtist.isEmpty, cleanArtist.lowercased() != "various" else {
+            matchCache[discogsId] = .some(nil)
+            return nil
+        }
+
+        // Try search with artist + title
+        if let album = try await searchAlbumThrowing(artist: cleanArtist, title: title) {
+            matchCache[discogsId] = .some(album.id.rawValue)
+            return album
+        }
+
+        // Try combined query as fallback
+        if let album = try await searchAlbumThrowing(artist: nil, title: "\(cleanArtist) \(title)") {
+            matchCache[discogsId] = .some(album.id.rawValue)
+            return album
+        }
+
+        matchCache[discogsId] = .some(nil)
         return nil
     }
 
-    // MARK: - Search Methods
+    // MARK: - Search
 
-    private func searchByUPC(_ upc: String) async -> Album? {
-        do {
-            var request = MusicCatalogSearchRequest(term: upc, types: [Album.self])
-            request.limit = 1
-            let response = try await request.response()
-            return response.albums.first
-        } catch {
-            return nil
+    /// Search Apple Music. Throws on error so callers can surface the problem.
+    func searchAlbumThrowing(artist: String?, title: String) async throws -> Album? {
+        let query: String
+        if let artist {
+            query = "\(artist) \(title)"
+        } else {
+            query = title
         }
-    }
 
-    private func searchByArtistTitle(artist: String, title: String) async -> Album? {
-        do {
-            // Clean up artist name (remove featuring, etc.)
-            let cleanArtist = artist.components(separatedBy: ",").first?.trimmingCharacters(in: .whitespaces) ?? artist
-            let query = "\(cleanArtist) \(title)"
+        var request = MusicCatalogSearchRequest(term: query, types: [Album.self])
+        request.limit = 10
+        let response = try await request.response()
 
-            var request = MusicCatalogSearchRequest(term: query, types: [Album.self])
-            request.limit = 5
-            let response = try await request.response()
+        let albums = Array(response.albums)
+        guard !albums.isEmpty else { return nil }
 
-            // Try to find a good match
             let titleLower = title.lowercased()
-            let artistLower = cleanArtist.lowercased()
+            let artistLower = artist?.lowercased()
 
-            // Prefer exact title match
-            if let match = response.albums.first(where: {
-                $0.title.lowercased() == titleLower &&
-                $0.artistName.lowercased().contains(artistLower)
+            // Best: exact title + artist match
+            if let artistLower {
+                if let match = albums.first(where: {
+                    $0.title.lowercased() == titleLower &&
+                    $0.artistName.lowercased().contains(artistLower)
+                }) {
+                    return match
+                }
+            }
+
+            // Good: exact title match (any artist)
+            if let match = albums.first(where: {
+                $0.title.lowercased() == titleLower
             }) {
                 return match
             }
 
-            // Accept contains match
-            if let match = response.albums.first(where: {
+            // OK: title contains or is contained
+            if let match = albums.first(where: {
                 $0.title.lowercased().contains(titleLower) ||
                 titleLower.contains($0.title.lowercased())
             }) {
                 return match
             }
 
-            // Return first result as last resort
-            return response.albums.first
-        } catch {
-            return nil
-        }
+            // Last resort: return top result
+        return albums.first
     }
+
+    // MARK: - Artist Name Cleaning
+
+    private func cleanArtistName(_ name: String) -> String {
+        // Take first artist from comma-separated list
+        var clean = name.components(separatedBy: ",").first?
+            .trimmingCharacters(in: .whitespaces) ?? name
+
+        // Remove Discogs disambiguation like "(2)", "(3)" at end
+        if let range = clean.range(of: #"\s*\(\d+\)\s*$"#, options: .regularExpression) {
+            clean = String(clean[clean.startIndex..<range.lowerBound])
+        }
+
+        // Remove "The " prefix variations for better matching
+        // (Apple Music sometimes stores without "The")
+        // Don't remove it - just return as-is, the search is fuzzy enough
+
+        return clean.trimmingCharacters(in: .whitespaces)
+    }
+
+    // MARK: - Fetch by ID
 
     private func fetchAlbumById(_ id: String) async -> Album? {
         do {
@@ -118,5 +150,9 @@ actor AppleMusicService {
         } catch {
             return nil
         }
+    }
+
+    func clearCache() {
+        matchCache.removeAll()
     }
 }
