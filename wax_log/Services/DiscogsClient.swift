@@ -5,7 +5,7 @@ actor DiscogsClient {
 
     private let baseURL = URL(string: "https://api.discogs.com")!
     private let session: URLSession
-    private let userAgent = "WaxLog/1.0 +https://github.com/adamjohnlea/wax-log"
+    private let userAgent = "VinylCrate/1.0 +https://github.com/adamjohnlea/wax-log"
 
     // Rate limiting state
     private var rateLimitRemaining: Int = 60

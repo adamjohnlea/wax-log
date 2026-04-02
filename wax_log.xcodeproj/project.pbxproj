@@ -261,9 +261,9 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Wax Log";
+				INFOPLIST_KEY_CFBundleDisplayName = "Vinyl Crate";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
-				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Wax Log uses Apple Music to play tracks from your collection.";
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Vinyl Crate uses Apple Music to match and play tracks from your record collection.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -298,9 +298,9 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Wax Log";
+				INFOPLIST_KEY_CFBundleDisplayName = "Vinyl Crate";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
-				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Wax Log uses Apple Music to play tracks from your collection.";
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Vinyl Crate uses Apple Music to match and play tracks from your record collection.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

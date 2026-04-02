@@ -1,4 +1,4 @@
-# Wax Log
+# Vinyl Crate
 
 A native macOS app for managing your vinyl (and other format) record collection, powered by the Discogs API with Apple Music integration.
 

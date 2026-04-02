@@ -29,7 +29,7 @@ struct ContentView: View {
                         SmartCollectionView(smartCollection: sc)
                     }
                 case nil:
-                    ContentUnavailableView("Wax Log", systemImage: "music.note.house", description: Text("Select a section from the sidebar."))
+                    ContentUnavailableView("Vinyl Crate", systemImage: "music.note.house", description: Text("Select a section from the sidebar."))
                 }
             }
             .navigationDestination(for: NSManagedObjectID.self) { objectID in
@@ -123,7 +123,7 @@ struct SidebarView: View {
             }
         }
         .navigationSplitViewColumnWidth(min: 180, ideal: 220)
-        .navigationTitle("Wax Log")
+        .navigationTitle("Vinyl Crate")
         .toolbar {
             ToolbarItem {
                 Button {

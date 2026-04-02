@@ -20,12 +20,12 @@ actor ImageCacheService {
 
     private init() {
         let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        cacheDirectory = appSupport.appendingPathComponent("WaxLog/ImageCache", isDirectory: true)
+        cacheDirectory = appSupport.appendingPathComponent("VinylCrate/ImageCache", isDirectory: true)
 
         try? fileManager.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
 
         let config = URLSessionConfiguration.default
-        config.httpAdditionalHeaders = ["User-Agent": "WaxLog/1.0 +https://github.com/adamjohnlea/wax-log"]
+        config.httpAdditionalHeaders = ["User-Agent": "VinylCrate/1.0 +https://github.com/adamjohnlea/wax-log"]
         session = URLSession(configuration: config)
 
         memoryCache.countLimit = 200

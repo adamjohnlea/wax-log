@@ -159,7 +159,7 @@ struct SettingsView: View {
         GroupBox("About") {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Text("Wax Log")
+                    Text("Vinyl Crate")
                         .font(.callout.weight(.medium))
                     Spacer()
                     Text("Version 1.0")
