@@ -22,13 +22,17 @@ struct NotesTab: View {
             GroupBox("Rating") {
                 HStack(spacing: 4) {
                     ForEach(1...5, id: \.self) { star in
-                        Image(systemName: star <= editedRating ? "star.fill" : "star")
-                            .foregroundStyle(star <= editedRating ? .yellow : .secondary)
-                            .font(.title2)
-                            .onTapGesture {
-                                editedRating = editedRating == star ? 0 : Int16(star)
-                                hasChanges = true
-                            }
+                        Button {
+                            editedRating = editedRating == star ? 0 : Int16(star)
+                            hasChanges = true
+                        } label: {
+                            Image(systemName: star <= editedRating ? "star.fill" : "star")
+                                .foregroundStyle(star <= editedRating ? .yellow : .secondary)
+                                .font(.title2)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(star) star\(star == 1 ? "" : "s")")
+                        .accessibilityAddTraits(star <= editedRating ? .isSelected : [])
                     }
 
                     if editedRating > 0 {

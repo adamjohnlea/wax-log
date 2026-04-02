@@ -4,6 +4,7 @@ import CoreData
 struct ContentView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @State private var selectedSection: SidebarSection? = .collection
+    @State private var syncService = SyncService()
 
     var body: some View {
         NavigationSplitView {
@@ -23,15 +24,12 @@ struct ContentView: View {
                     DiscogsSearchView()
                 case .tools:
                     ToolsView()
-                case .settings:
-                    SettingsView()
                 case .smartCollection(let objectID):
                     if let sc = try? viewContext.existingObject(with: objectID) as? SmartCollection {
                         SmartCollectionView(smartCollection: sc)
                     }
                 case nil:
-                    Text("Select a section")
-                        .foregroundStyle(.secondary)
+                    ContentUnavailableView("Wax Log", systemImage: "music.note.house", description: Text("Select a section from the sidebar."))
                 }
             }
             .navigationDestination(for: NSManagedObjectID.self) { objectID in
@@ -40,9 +38,16 @@ struct ContentView: View {
                 }
             }
         } detail: {
-            Text("Select a release")
-                .font(.title2)
-                .foregroundStyle(.secondary)
+            ContentUnavailableView("Select a Release", systemImage: "opticaldisc", description: Text("Choose a release to view its details."))
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .syncCollection)) { _ in
+            Task { await syncService.performInitialSync() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .refreshCollection)) { _ in
+            Task { await syncService.performIncrementalRefresh() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .enrichAll)) { _ in
+            Task { await syncService.enrichAllReleases() }
         }
     }
 }
@@ -56,7 +61,6 @@ enum SidebarSection: Hashable {
     case randomizer
     case discogsSearch
     case tools
-    case settings
     case smartCollection(NSManagedObjectID)
 }
 
@@ -102,7 +106,7 @@ struct SidebarView: View {
                 }
             }
 
-            Section {
+            Section("Discover") {
                 Label("Statistics", systemImage: "chart.bar")
                     .tag(SidebarSection.statistics)
 
@@ -111,12 +115,11 @@ struct SidebarView: View {
 
                 Label("Discogs Search", systemImage: "magnifyingglass")
                     .tag(SidebarSection.discogsSearch)
+            }
 
+            Section {
                 Label("Tools", systemImage: "wrench")
                     .tag(SidebarSection.tools)
-
-                Label("Settings", systemImage: "gear")
-                    .tag(SidebarSection.settings)
             }
         }
         .navigationSplitViewColumnWidth(min: 180, ideal: 220)
@@ -128,6 +131,7 @@ struct SidebarView: View {
                 } label: {
                     Label("New Smart Collection", systemImage: "plus")
                 }
+                .help("Create a new Smart Collection")
             }
         }
         .sheet(isPresented: $showingAddSmartCollection) {

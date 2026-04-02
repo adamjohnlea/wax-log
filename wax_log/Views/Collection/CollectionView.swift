@@ -23,7 +23,8 @@ struct CollectionView: View {
         guard !searchText.isEmpty else { return Array(releases) }
         let query = searchText.lowercased()
         return releases.filter { release in
-            (release.artist ?? "").lowercased().contains(query)
+            (release.artist ?? "").lowercased().contains(query) ||
+            (release.title ?? "").lowercased().contains(query)
         }
     }
 
@@ -33,7 +34,7 @@ struct CollectionView: View {
                 ContentUnavailableView(
                     listType == "collection" ? "No Releases" : "Wantlist Empty",
                     systemImage: listType == "collection" ? "music.note.house" : "heart",
-                    description: Text("Use Tools > Sync to import your Discogs \(listType).")
+                    description: Text("Use Collection > Sync Collection to import your Discogs \(listType).")
                 )
             } else if filteredReleases.isEmpty && !searchText.isEmpty {
                 ContentUnavailableView.search(text: searchText)
@@ -50,9 +51,10 @@ struct CollectionView: View {
         .navigationSubtitle("\(filteredReleases.count) releases")
         .toolbar {
             ToolbarItemGroup {
-                TextField("Search by artist...", text: $searchText)
+                TextField("Search artist or title...", text: $searchText)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 200)
+                    .help("Filter by artist or title name")
 
                 if !searchText.isEmpty {
                     Button {
@@ -61,19 +63,28 @@ struct CollectionView: View {
                         Image(systemName: "xmark.circle.fill")
                     }
                     .buttonStyle(.borderless)
+                    .help("Clear search")
                 }
 
                 sortMenu
 
-                Picker("View", selection: $viewMode) {
+                Picker("View Mode", selection: $viewMode) {
                     Image(systemName: "list.bullet").tag(ViewMode.list)
                     Image(systemName: "square.grid.2x2").tag(ViewMode.grid)
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
+                .help("Switch between list and grid view")
             }
         }
         .onChange(of: sortOrder) {
             releases.nsSortDescriptors = sortOrder.descriptors
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .switchToListView)) { _ in
+            viewMode = .list
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .switchToGridView)) { _ in
+            viewMode = .grid
         }
     }
 
@@ -91,6 +102,7 @@ struct CollectionView: View {
                             .padding(.vertical, 6)
                     }
                     .buttonStyle(.plain)
+                    .contextMenu { releaseContextMenu(for: release) }
                     Divider().padding(.leading, 64)
                 }
             }
@@ -107,9 +119,47 @@ struct CollectionView: View {
                         ReleaseCard(release: release)
                     }
                     .buttonStyle(.plain)
+                    .contextMenu { releaseContextMenu(for: release) }
                 }
             }
             .padding()
+        }
+    }
+
+    // MARK: - Context Menu
+
+    @ViewBuilder
+    private func releaseContextMenu(for release: Release) -> some View {
+        Button {
+            let id = release.discogsId
+            if let url = URL(string: "https://www.discogs.com/release/\(id)") {
+                NSWorkspace.shared.open(url)
+            }
+        } label: {
+            Label("Open in Discogs", systemImage: "safari")
+        }
+
+        if release.enriched {
+            Divider()
+        } else {
+            Button {
+                let objectID = release.objectID
+                Task {
+                    let syncService = SyncService()
+                    await syncService.enrichSingleRelease(objectID)
+                }
+            } label: {
+                Label("Enrich", systemImage: "sparkles")
+            }
+
+            Divider()
+        }
+
+        Button(role: .destructive) {
+            viewContext.delete(release)
+            try? viewContext.save()
+        } label: {
+            Label("Remove from \(listType == "collection" ? "Collection" : "Wantlist")", systemImage: "trash")
         }
     }
 
@@ -131,6 +181,7 @@ struct CollectionView: View {
         } label: {
             Label("Sort", systemImage: "arrow.up.arrow.down")
         }
+        .help("Change sort order")
     }
 }
 

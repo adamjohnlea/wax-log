@@ -79,8 +79,15 @@ struct SettingsView: View {
 
                     Spacer()
 
-                    Button("Test Connection") {
+                    Button {
                         testConnection()
+                    } label: {
+                        if isTestingConnection {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Text("Test Connection")
+                        }
                     }
                     .disabled(discogsUsername.isEmpty || discogsToken.isEmpty || isTestingConnection)
 

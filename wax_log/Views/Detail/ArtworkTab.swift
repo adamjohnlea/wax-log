@@ -4,7 +4,7 @@ struct ArtworkTab: View {
     @ObservedObject var release: Release
     @State private var images: [(index: Int, type: String, image: NSImage?)] = []
     @State private var isLoading = false
-    @State private var selectedImage: NSImage?
+    @State private var selectedLightboxImage: LightboxItem?
     @State private var isDownloading = false
     @State private var isEnriching = false
     @State private var downloadCurrent = 0
@@ -107,8 +107,8 @@ struct ArtworkTab: View {
         .task(id: release.discogsId) {
             await loadImages()
         }
-        .sheet(item: $selectedImage) { image in
-            LightboxView(image: image)
+        .sheet(item: $selectedLightboxImage) { item in
+            LightboxView(image: item.image)
         }
     }
 
@@ -124,7 +124,7 @@ struct ArtworkTab: View {
                             localImagePath: release.localImagePath,
                             imageURL: release.imageURL
                         ) {
-                            selectedImage = img
+                            selectedLightboxImage = LightboxItem(id: -1, image: img)
                         }
                     }
                 }
@@ -141,12 +141,15 @@ struct ArtworkTab: View {
         VStack(spacing: 4) {
             Group {
                 if let image = item.image {
-                    Image(nsImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .onTapGesture {
-                            selectedImage = image
-                        }
+                    Button {
+                        selectedLightboxImage = LightboxItem(id: item.index, image: image)
+                    } label: {
+                        Image(nsImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(item.type) artwork")
                 } else {
                     Rectangle()
                         .fill(.quaternary)
@@ -200,6 +203,31 @@ struct ArtworkTab: View {
         }
     }
 
+    private func redownloadImages() {
+        isDownloading = true
+        let discogsId = release.discogsId
+        let additionalImages = release.decodedAdditionalImages ?? []
+        downloadCurrent = 0
+        downloadTotal = additionalImages.count
+
+        Task {
+            // Delete existing cached files first
+            for (index, _) in additionalImages.enumerated() {
+                await ImageCacheService.shared.deleteAdditionalImage(discogsId: discogsId, imageIndex: index)
+            }
+
+            // Re-download all
+            for (index, info) in additionalImages.enumerated() {
+                if let url = URL(string: info.uri) {
+                    _ = await ImageCacheService.shared.downloadAdditionalImage(discogsId: discogsId, imageIndex: index, url: url)
+                }
+                downloadCurrent = index + 1
+            }
+            await loadImages()
+            isDownloading = false
+        }
+    }
+
     private func downloadImages() {
         isDownloading = true
         let discogsId = release.discogsId
@@ -222,8 +250,9 @@ struct ArtworkTab: View {
 
 // MARK: - Lightbox
 
-extension NSImage: @retroactive Identifiable {
-    public var id: Int { hashValue }
+struct LightboxItem: Identifiable {
+    let id: Int
+    let image: NSImage
 }
 
 struct LightboxView: View {
@@ -232,12 +261,13 @@ struct LightboxView: View {
 
     var body: some View {
         ZStack {
-            Color.black
+            Color(nsColor: .windowBackgroundColor).opacity(0.95)
 
             Image(nsImage: image)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .padding(20)
+                .accessibilityLabel("Full size artwork")
         }
         .frame(minWidth: 600, minHeight: 600)
         .onTapGesture {
@@ -249,9 +279,10 @@ struct LightboxView: View {
             } label: {
                 Image(systemName: "xmark.circle.fill")
                     .font(.title)
-                    .foregroundStyle(.white.opacity(0.8))
+                    .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
+            .keyboardShortcut(.cancelAction)
             .padding()
         }
     }

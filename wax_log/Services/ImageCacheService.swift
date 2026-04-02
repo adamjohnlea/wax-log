@@ -198,6 +198,13 @@ actor ImageCacheService {
         return fileManager.fileExists(atPath: fileURL.path)
     }
 
+    /// Delete a cached additional image so it can be re-downloaded.
+    func deleteAdditionalImage(discogsId: Int64, imageIndex: Int) {
+        let filename = "\(discogsId)_\(imageIndex).jpg"
+        let fileURL = cacheDirectory.appendingPathComponent(filename)
+        try? fileManager.removeItem(at: fileURL)
+    }
+
     var remainingDailyDownloads: Int {
         resetDailyCountIfNeeded()
         let count = UserDefaults.standard.integer(forKey: "imageDailyCount")

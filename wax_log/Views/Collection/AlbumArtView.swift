@@ -23,6 +23,7 @@ struct AlbumArtView: View {
         }
         .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: size > 60 ? 8 : 4))
+        .accessibilityLabel("Album artwork for \(release.title ?? "unknown") by \(release.displayArtist)")
         .task(id: release.discogsId) {
             let discogsId = release.discogsId
             let localPath = release.localImagePath

@@ -33,6 +33,9 @@ struct ToolsView: View {
                 // Image cache
                 imageCacheSection
 
+                // Maintenance
+                maintenanceSection
+
                 // Database info
                 databaseSection
 
@@ -42,6 +45,7 @@ struct ToolsView: View {
             .padding()
         }
         .navigationTitle("Tools")
+        .onAppear { updateCacheSize() }
         .alert("Reset All Data", isPresented: $showingResetConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Delete Everything", role: .destructive) {
@@ -198,7 +202,7 @@ struct ToolsView: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Text(cacheSizeText)
+                    Text(cacheSizeFormatted)
                         .font(.callout.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
@@ -219,14 +223,51 @@ struct ToolsView: View {
         }
     }
 
-    private var cacheSizeText: String {
-        // This is async but we show a placeholder
-        "Calculating..."
+    @State private var cacheSizeFormatted: String = "—"
+
+    private func updateCacheSize() {
+        Task {
+            let bytes = await ImageCacheService.shared.cacheSize
+            let formatter = ByteCountFormatter()
+            formatter.allowedUnits = [.useMB, .useGB]
+            formatter.countStyle = .file
+            cacheSizeFormatted = formatter.string(fromByteCount: bytes)
+        }
     }
 
     private var dailyDownloadCount: Int {
         UserDefaults.standard.integer(forKey: "imageDailyCount")
     }
+
+    // MARK: - Maintenance
+
+    private var maintenanceSection: some View {
+        GroupBox("Maintenance") {
+            HStack {
+                VStack(alignment: .leading) {
+                    Text("Deduplicate Releases")
+                        .font(.callout.weight(.medium))
+                    Text("Remove duplicate records caused by iCloud sync conflicts.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("Deduplicate") {
+                    let count = syncService.deduplicateReleases()
+                    dedupMessage = count > 0 ? "Removed \(count) duplicate\(count == 1 ? "" : "s")." : "No duplicates found."
+                }
+
+                if let msg = dedupMessage {
+                    Text(msg)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @State private var dedupMessage: String?
 
     // MARK: - Database
 

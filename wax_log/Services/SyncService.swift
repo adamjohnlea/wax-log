@@ -34,6 +34,9 @@ final class SyncService {
             // Phase 2: Sync wantlist
             try await syncWantlist(username: username)
 
+            // Phase 3: Remove duplicates (from iCloud re-sync)
+            deduplicateReleases()
+
             syncProgress = SyncProgress(phase: .complete, current: 0, total: 0, message: "Sync complete!")
             UserDefaults.standard.set(Date(), forKey: "lastSyncDate")
         } catch {
@@ -59,6 +62,7 @@ final class SyncService {
 
             try await syncCollection(username: username)
             try await syncWantlist(username: username)
+            deduplicateReleases()
 
             syncProgress = SyncProgress(phase: .complete, current: 0, total: 0, message: "Refresh complete!")
             UserDefaults.standard.set(Date(), forKey: "lastSyncDate")
@@ -523,6 +527,37 @@ final class SyncService {
             username: username, releaseId: discogsId, instanceId: instanceId,
             fieldId: 3, value: personalNotes
         )
+    }
+
+    // MARK: - Deduplication
+
+    @discardableResult
+    func deduplicateReleases() -> Int {
+        let context = persistenceController.container.viewContext
+        let request = NSFetchRequest<Release>(entityName: "Release")
+        request.sortDescriptors = [NSSortDescriptor(keyPath: \Release.dateAdded, ascending: true)]
+
+        guard let allReleases = try? context.fetch(request) else { return 0 }
+
+        var seen = Set<String>()
+        var duplicates: [Release] = []
+
+        for release in allReleases {
+            let key = "\(release.discogsId)_\(release.listType ?? "")"
+            if seen.contains(key) {
+                duplicates.append(release)
+            } else {
+                seen.insert(key)
+            }
+        }
+
+        guard !duplicates.isEmpty else { return 0 }
+
+        for dup in duplicates {
+            context.delete(dup)
+        }
+        try? context.save()
+        return duplicates.count
     }
 
     // MARK: - Helpers
