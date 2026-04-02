@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="23231" systemVersion="25E143" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithCloudKit="YES">
+    <entity name="Release" representedClassName="Release" syncable="YES" codeGenerationType="class">
+        <attribute name="artist" attributeType="String" defaultValueString=""/>
+        <attribute name="barcode" optional="YES" attributeType="String"/>
+        <attribute name="country" attributeType="String" defaultValueString=""/>
+        <attribute name="credits" optional="YES" attributeType="String"/>
+        <attribute name="dateAdded" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="discogsId" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="enriched" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="format" attributeType="String" defaultValueString=""/>
+        <attribute name="genre" attributeType="String" defaultValueString=""/>
+        <attribute name="identifiers" optional="YES" attributeType="String"/>
+        <attribute name="imageURL" optional="YES" attributeType="String"/>
+        <attribute name="label" attributeType="String" defaultValueString=""/>
+        <attribute name="listType" attributeType="String" defaultValueString="collection"/>
+        <attribute name="localImagePath" optional="YES" attributeType="String"/>
+        <attribute name="mediaCondition" optional="YES" attributeType="String"/>
+        <attribute name="notes" optional="YES" attributeType="String"/>
+        <attribute name="personalNotes" optional="YES" attributeType="String"/>
+        <attribute name="rating" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="sleeveCondition" optional="YES" attributeType="String"/>
+        <attribute name="style" attributeType="String" defaultValueString=""/>
+        <attribute name="title" attributeType="String" defaultValueString=""/>
+        <attribute name="tracklist" optional="YES" attributeType="String"/>
+        <attribute name="year" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+    </entity>
+    <entity name="SmartCollection" representedClassName="SmartCollection" syncable="YES" codeGenerationType="class">
+        <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="name" attributeType="String" defaultValueString=""/>
+        <attribute name="query" attributeType="String" defaultValueString=""/>
+    </entity>
+</model>
