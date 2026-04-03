@@ -125,7 +125,7 @@ struct NotesTab: View {
                 }
             }
         }
-        .onAppear {
+        .task(id: release.objectID) {
             loadFromRelease()
         }
     }
@@ -135,6 +135,9 @@ struct NotesTab: View {
         editedRating = release.rating
         editedMediaCondition = release.mediaCondition ?? ""
         editedSleeveCondition = release.sleeveCondition ?? ""
+        hasChanges = false
+        pushResult = nil
+        isPushing = false
     }
 
     private func saveChanges() {

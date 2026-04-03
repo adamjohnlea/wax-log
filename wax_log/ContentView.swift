@@ -4,6 +4,8 @@ import CoreData
 struct ContentView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @State private var selectedSection: SidebarSection? = .collection
+    @SceneStorage("selectedSection") private var savedSection: String = "collection"
+    @State private var selectedRelease: NSManagedObjectID?
     @State private var syncService = SyncService()
 
     var body: some View {
@@ -13,9 +15,9 @@ struct ContentView: View {
             Group {
                 switch selectedSection {
                 case .collection:
-                    CollectionView(listType: "collection")
+                    CollectionView(listType: "collection", selectedRelease: $selectedRelease)
                 case .wantlist:
-                    CollectionView(listType: "wantlist")
+                    CollectionView(listType: "wantlist", selectedRelease: $selectedRelease)
                 case .statistics:
                     StatisticsView()
                 case .randomizer:
@@ -32,13 +34,23 @@ struct ContentView: View {
                     ContentUnavailableView("Vinyl Crate", systemImage: "music.note.house", description: Text("Select a section from the sidebar."))
                 }
             }
-            .navigationDestination(for: NSManagedObjectID.self) { objectID in
-                if let release = try? viewContext.existingObject(with: objectID) as? Release {
-                    ReleaseDetailView(release: release)
-                }
-            }
         } detail: {
-            ContentUnavailableView("Select a Release", systemImage: "opticaldisc", description: Text("Choose a release to view its details."))
+            if let selectedRelease,
+               let release = try? viewContext.existingObject(with: selectedRelease) as? Release {
+                ReleaseDetailView(release: release)
+                    .id(selectedRelease)
+            } else {
+                ContentUnavailableView("Select a Release", systemImage: "opticaldisc", description: Text("Choose a release to view its details."))
+            }
+        }
+        .onAppear {
+            if let section = SidebarSection(rawValue: savedSection) {
+                selectedSection = section
+            }
+        }
+        .onChange(of: selectedSection) { _, newValue in
+            savedSection = newValue?.rawValue ?? "collection"
+            selectedRelease = nil
         }
         .onReceive(NotificationCenter.default.publisher(for: .syncCollection)) { _ in
             Task { await syncService.performInitialSync() }
@@ -62,6 +74,30 @@ enum SidebarSection: Hashable {
     case discogsSearch
     case tools
     case smartCollection(NSManagedObjectID)
+
+    var rawValue: String {
+        switch self {
+        case .collection: "collection"
+        case .wantlist: "wantlist"
+        case .statistics: "statistics"
+        case .randomizer: "randomizer"
+        case .discogsSearch: "discogsSearch"
+        case .tools: "tools"
+        case .smartCollection: "collection"
+        }
+    }
+
+    init?(rawValue: String) {
+        switch rawValue {
+        case "collection": self = .collection
+        case "wantlist": self = .wantlist
+        case "statistics": self = .statistics
+        case "randomizer": self = .randomizer
+        case "discogsSearch": self = .discogsSearch
+        case "tools": self = .tools
+        default: self = .collection
+        }
+    }
 }
 
 struct SidebarView: View {

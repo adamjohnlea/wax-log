@@ -3,15 +3,27 @@ import CoreData
 
 struct CollectionView: View {
     let listType: String
+    @Binding var selectedRelease: NSManagedObjectID?
     @Environment(\.managedObjectContext) private var viewContext
-    @State private var sortOrder: SortOrder = .dateAdded
-    @State private var viewMode: ViewMode = .list
+    @AppStorage("sortOrder") private var sortOrderRaw: String = "dateAdded"
+    @AppStorage("viewMode") private var viewModeRaw: String = "list"
     @State private var searchText = ""
+
+    private var sortOrder: SortOrder {
+        get { SortOrder(rawValue: sortOrderRaw) ?? .dateAdded }
+        set { sortOrderRaw = newValue.rawValue }
+    }
+
+    private var viewMode: ViewMode {
+        get { ViewMode(rawValue: viewModeRaw) ?? .list }
+        set { viewModeRaw = newValue.rawValue }
+    }
 
     @FetchRequest private var releases: FetchedResults<Release>
 
-    init(listType: String) {
+    init(listType: String, selectedRelease: Binding<NSManagedObjectID?>) {
         self.listType = listType
+        self._selectedRelease = selectedRelease
         _releases = FetchRequest(
             sortDescriptors: [NSSortDescriptor(keyPath: \Release.dateAdded, ascending: false)],
             predicate: NSPredicate(format: "listType == %@", listType),
@@ -68,23 +80,23 @@ struct CollectionView: View {
 
                 sortMenu
 
-                Picker("View Mode", selection: $viewMode) {
-                    Image(systemName: "list.bullet").tag(ViewMode.list)
-                    Image(systemName: "square.grid.2x2").tag(ViewMode.grid)
+                Picker("View Mode", selection: $viewModeRaw) {
+                    Image(systemName: "list.bullet").tag(ViewMode.list.rawValue)
+                    Image(systemName: "square.grid.2x2").tag(ViewMode.grid.rawValue)
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
                 .help("Switch between list and grid view")
             }
         }
-        .onChange(of: sortOrder) {
+        .onChange(of: sortOrderRaw) {
             releases.nsSortDescriptors = sortOrder.descriptors
         }
         .onReceive(NotificationCenter.default.publisher(for: .switchToListView)) { _ in
-            viewMode = .list
+            viewModeRaw = ViewMode.list.rawValue
         }
         .onReceive(NotificationCenter.default.publisher(for: .switchToGridView)) { _ in
-            viewMode = .grid
+            viewModeRaw = ViewMode.grid.rawValue
         }
     }
 
@@ -94,12 +106,15 @@ struct CollectionView: View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 ForEach(filteredReleases, id: \.objectID) { release in
-                    NavigationLink(value: release.objectID) {
+                    Button {
+                        selectedRelease = release.objectID
+                    } label: {
                         ReleaseRow(release: release)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .contentShape(Rectangle())
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
+                            .background(selectedRelease == release.objectID ? Color.accentColor.opacity(0.15) : Color.clear)
                     }
                     .buttonStyle(.plain)
                     .contextMenu { releaseContextMenu(for: release) }
@@ -115,7 +130,9 @@ struct CollectionView: View {
         ScrollView {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 180, maximum: 220))], spacing: 16) {
                 ForEach(filteredReleases, id: \.objectID) { release in
-                    NavigationLink(value: release.objectID) {
+                    Button {
+                        selectedRelease = release.objectID
+                    } label: {
                         ReleaseCard(release: release)
                     }
                     .buttonStyle(.plain)
@@ -169,7 +186,7 @@ struct CollectionView: View {
         Menu {
             ForEach(SortOrder.allCases, id: \.self) { order in
                 Button {
-                    sortOrder = order
+                    sortOrderRaw = order.rawValue
                 } label: {
                     if sortOrder == order {
                         Label(order.label, systemImage: "checkmark")
@@ -187,7 +204,7 @@ struct CollectionView: View {
 
 // MARK: - Sort Order
 
-enum SortOrder: CaseIterable {
+enum SortOrder: String, CaseIterable {
     case dateAdded, year, artist, title, rating
 
     var label: String {
@@ -213,6 +230,6 @@ enum SortOrder: CaseIterable {
 
 // MARK: - View Mode
 
-enum ViewMode {
+enum ViewMode: String {
     case list, grid
 }
