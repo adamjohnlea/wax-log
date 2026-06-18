@@ -6,11 +6,27 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		DE279E6F2FE46C25009F0D56 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = DE6445792F7E184900AD34F5 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DE6445802F7E184900AD34F5;
+			remoteInfo = wax_log;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		DE279E6B2FE46C25009F0D56 /* wax_logTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = wax_logTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DE6445812F7E184900AD34F5 /* Vinyl Crate.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Vinyl Crate.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		DE279E6C2FE46C25009F0D56 /* wax_logTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = wax_logTests;
+			sourceTree = "<group>";
+		};
 		DE6445832F7E184900AD34F5 /* wax_log */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = wax_log;
@@ -19,6 +35,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		DE279E682FE46C25009F0D56 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DE64457E2F7E184900AD34F5 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -33,6 +56,7 @@
 			isa = PBXGroup;
 			children = (
 				DE6445832F7E184900AD34F5 /* wax_log */,
+				DE279E6C2FE46C25009F0D56 /* wax_logTests */,
 				DE6445822F7E184900AD34F5 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +65,7 @@
 			isa = PBXGroup;
 			children = (
 				DE6445812F7E184900AD34F5 /* Vinyl Crate.app */,
+				DE279E6B2FE46C25009F0D56 /* wax_logTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,6 +73,29 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		DE279E6A2FE46C25009F0D56 /* wax_logTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DE279E732FE46C25009F0D56 /* Build configuration list for PBXNativeTarget "wax_logTests" */;
+			buildPhases = (
+				DE279E672FE46C25009F0D56 /* Sources */,
+				DE279E682FE46C25009F0D56 /* Frameworks */,
+				DE279E692FE46C25009F0D56 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				DE279E702FE46C25009F0D56 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				DE279E6C2FE46C25009F0D56 /* wax_logTests */,
+			);
+			name = wax_logTests;
+			packageProductDependencies = (
+			);
+			productName = wax_logTests;
+			productReference = DE279E6B2FE46C25009F0D56 /* wax_logTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		DE6445802F7E184900AD34F5 /* wax_log */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = DE64458E2F7E184A00AD34F5 /* Build configuration list for PBXNativeTarget "wax_log" */;
@@ -77,9 +125,13 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2640;
+				LastSwiftUpdateCheck = 2700;
 				LastUpgradeCheck = 2700;
 				TargetAttributes = {
+					DE279E6A2FE46C25009F0D56 = {
+						CreatedOnToolsVersion = 27.0;
+						TestTargetID = DE6445802F7E184900AD34F5;
+					};
 					DE6445802F7E184900AD34F5 = {
 						CreatedOnToolsVersion = 26.4;
 					};
@@ -100,11 +152,19 @@
 			projectRoot = "";
 			targets = (
 				DE6445802F7E184900AD34F5 /* wax_log */,
+				DE279E6A2FE46C25009F0D56 /* wax_logTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		DE279E692FE46C25009F0D56 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DE64457F2F7E184900AD34F5 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -115,6 +175,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		DE279E672FE46C25009F0D56 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DE64457D2F7E184900AD34F5 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -124,7 +191,57 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		DE279E702FE46C25009F0D56 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DE6445802F7E184900AD34F5 /* wax_log */;
+			targetProxy = DE279E6F2FE46C25009F0D56 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		DE279E712FE46C25009F0D56 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = S927NCGL3V;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.adamjohnlea.wax-logTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Vinyl Crate.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Vinyl Crate";
+			};
+			name = Debug;
+		};
+		DE279E722FE46C25009F0D56 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = S927NCGL3V;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.adamjohnlea.wax-logTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Vinyl Crate.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Vinyl Crate";
+			};
+			name = Release;
+		};
 		DE64458C2F7E184A00AD34F5 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -330,6 +447,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		DE279E732FE46C25009F0D56 /* Build configuration list for PBXNativeTarget "wax_logTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DE279E712FE46C25009F0D56 /* Debug */,
+				DE279E722FE46C25009F0D56 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		DE64457C2F7E184900AD34F5 /* Build configuration list for PBXProject "wax_log" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
