@@ -36,5 +36,14 @@ struct ReleaseCard: View {
         .padding(8)
         .background(.background, in: RoundedRectangle(cornerRadius: 12))
         .shadow(color: .black.opacity(0.05), radius: 2, y: 1)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var accessibilityLabel: String {
+        var parts = [release.title ?? "Untitled", "by \(release.displayArtist)"]
+        if release.year > 0 { parts.append(release.displayYear) }
+        if let format = release.format, !format.isEmpty { parts.append(format) }
+        return parts.joined(separator: ", ")
     }
 }

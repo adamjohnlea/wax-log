@@ -127,6 +127,11 @@ extension Release {
         rating > 0 ? String(repeating: "★", count: Int(rating)) + String(repeating: "☆", count: 5 - Int(rating)) : "Not Rated"
     }
 
+    /// Spoken rating for VoiceOver, since `displayRating`'s star glyphs read poorly.
+    var accessibilityRating: String {
+        rating > 0 ? "Rated \(rating) out of 5" : "Not rated"
+    }
+
     static func collectionFetchRequest() -> NSFetchRequest<Release> {
         let request = NSFetchRequest<Release>(entityName: "Release")
         request.predicate = NSPredicate(format: "listType == %@", "collection")

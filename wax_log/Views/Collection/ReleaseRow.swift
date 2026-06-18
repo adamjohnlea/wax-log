@@ -36,5 +36,15 @@ struct ReleaseRow: View {
             }
         }
         .padding(.vertical, 2)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var accessibilityLabel: String {
+        var parts = [release.title ?? "Untitled", "by \(release.displayArtist)"]
+        if release.year > 0 { parts.append(release.displayYear) }
+        if let format = release.format, !format.isEmpty { parts.append(format) }
+        if release.rating > 0 { parts.append(release.accessibilityRating) }
+        return parts.joined(separator: ", ")
     }
 }

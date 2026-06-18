@@ -56,6 +56,7 @@ struct RandomizerView: View {
                             Text(release.displayRating)
                                 .font(.title3)
                                 .padding(.top, 4)
+                                .accessibilityLabel(release.accessibilityRating)
                         }
                     }
 

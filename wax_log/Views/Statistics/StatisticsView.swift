@@ -61,6 +61,7 @@ struct StatCard: View {
                 Image(systemName: icon)
                     .font(.title2)
                     .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
 
                 Text(value)
                     .font(.title.bold())
@@ -71,6 +72,7 @@ struct StatCard: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 4)
+            .accessibilityElement(children: .combine)
         }
     }
 }

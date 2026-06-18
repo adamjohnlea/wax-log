@@ -80,6 +80,7 @@ struct ReleaseDetailView: View {
                 if release.rating > 0 {
                     Text(release.displayRating)
                         .font(.callout)
+                        .accessibilityLabel(release.accessibilityRating)
                 }
             }
 
