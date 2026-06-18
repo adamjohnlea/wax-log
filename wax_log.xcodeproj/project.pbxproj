@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		DE6445812F7E184900AD34F5 /* wax_log.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = wax_log.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DE6445812F7E184900AD34F5 /* wax_log.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = wax_log.app; path = "Vinyl Crate.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */

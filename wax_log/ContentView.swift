@@ -3,39 +3,37 @@ import CoreData
 
 struct ContentView: View {
     @Environment(\.managedObjectContext) private var viewContext
-    @State private var selectedSection: SidebarSection? = .collection
-    @SceneStorage("selectedSection") private var savedSection: String = "collection"
-    @State private var selectedRelease: NSManagedObjectID?
-    @State private var syncService = SyncService()
+    @Environment(AppModel.self) private var appModel
 
     var body: some View {
+        @Bindable var appModel = appModel
         NavigationSplitView {
-            SidebarView(selection: $selectedSection)
+            SidebarView(selection: $appModel.selectedSection)
         } content: {
             Group {
-                switch selectedSection {
+                switch appModel.selectedSection {
                 case .collection:
-                    CollectionView(listType: "collection", selectedRelease: $selectedRelease)
+                    CollectionView(listType: "collection", selectedRelease: $appModel.selectedRelease)
                 case .wantlist:
-                    CollectionView(listType: "wantlist", selectedRelease: $selectedRelease)
+                    CollectionView(listType: "wantlist", selectedRelease: $appModel.selectedRelease)
                 case .statistics:
                     StatisticsView()
                 case .randomizer:
-                    RandomizerView(selectedRelease: $selectedRelease)
+                    RandomizerView(selectedRelease: $appModel.selectedRelease)
                 case .discogsSearch:
                     DiscogsSearchView()
                 case .tools:
                     ToolsView()
                 case .smartCollection(let objectID):
                     if let sc = try? viewContext.existingObject(with: objectID) as? SmartCollection {
-                        SmartCollectionView(smartCollection: sc, selectedRelease: $selectedRelease)
+                        SmartCollectionView(smartCollection: sc, selectedRelease: $appModel.selectedRelease)
                     }
                 case nil:
                     ContentUnavailableView("Vinyl Crate", systemImage: "music.note.house", description: Text("Select a section from the sidebar."))
                 }
             }
         } detail: {
-            if let selectedRelease,
+            if let selectedRelease = appModel.selectedRelease,
                let release = try? viewContext.existingObject(with: selectedRelease) as? Release {
                 ReleaseDetailView(release: release)
                     .id(selectedRelease)
@@ -44,22 +42,10 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            if let section = SidebarSection(rawValue: savedSection) {
-                selectedSection = section
-            }
+            appModel.restoreSavedSection()
         }
-        .onChange(of: selectedSection) { _, newValue in
-            savedSection = newValue?.rawValue ?? "collection"
-            selectedRelease = nil
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .syncCollection)) { _ in
-            Task { await syncService.performInitialSync() }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .refreshCollection)) { _ in
-            Task { await syncService.performIncrementalRefresh() }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .enrichAll)) { _ in
-            Task { await syncService.enrichAllReleases() }
+        .onChange(of: appModel.selectedSection) { _, _ in
+            appModel.sectionDidChange()
         }
     }
 }
@@ -181,4 +167,5 @@ struct SidebarView: View {
 #Preview {
     ContentView()
         .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
+        .environment(AppModel(persistenceController: .preview))
 }
