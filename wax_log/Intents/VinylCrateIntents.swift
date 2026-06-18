@@ -57,6 +57,37 @@ struct FindReleasesIntent: AppIntent {
     }
 }
 
+/// Searches Discogs for a record and adds the top match to the wantlist.
+struct AddToWantlistIntent: AppIntent {
+    static var title: LocalizedStringResource = "Add to Wantlist"
+    static var description = IntentDescription("Search Discogs and add the top match to your wantlist.")
+
+    @Parameter(title: "Record", description: "An artist and/or album title to search for")
+    var query: String
+
+    @Dependency private var appModel: AppModel
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        guard let title = try await appModel.addToWantlist(matching: query) else {
+            return .result(dialog: "I couldn't find \"\(query)\" on Discogs.")
+        }
+        return .result(dialog: "Added \(title) to your wantlist.")
+    }
+}
+
+/// Reports a summary of the collection (counts and average rating).
+struct CollectionStatsIntent: AppIntent {
+    static var title: LocalizedStringResource = "Collection Stats"
+    static var description = IntentDescription("Get a summary of your record collection.")
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog {
+        let summary = CollectionStats.current().spokenSummary
+        return .result(value: summary, dialog: "\(summary)")
+    }
+}
+
 /// Exposes the app's intents to Siri and the Shortcuts app.
 ///
 /// Note: macOS doesn't surface pre-configured App Shortcuts system-wide the way
@@ -81,6 +112,24 @@ struct VinylCrateShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Find Records",
             systemImageName: "magnifyingglass"
+        )
+        AppShortcut(
+            intent: AddToWantlistIntent(),
+            phrases: [
+                "Add a record to my wantlist in \(.applicationName)",
+                "Add to my \(.applicationName) wantlist"
+            ],
+            shortTitle: "Add to Wantlist",
+            systemImageName: "heart"
+        )
+        AppShortcut(
+            intent: CollectionStatsIntent(),
+            phrases: [
+                "How many records do I have in \(.applicationName)",
+                "My \(.applicationName) collection stats"
+            ],
+            shortTitle: "Collection Stats",
+            systemImageName: "chart.bar"
         )
     }
 }

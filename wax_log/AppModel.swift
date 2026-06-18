@@ -94,6 +94,17 @@ final class AppModel {
         UserDefaults.standard.set(selectedSection?.rawValue ?? "collection", forKey: savedSectionKey)
     }
 
+    /// Searches Discogs for `query` and adds the top match to the wantlist,
+    /// re-indexing so it's searchable. Returns the added title, or `nil` if
+    /// nothing matched.
+    func addToWantlist(matching query: String) async throws -> String? {
+        let title = try await syncService.addTopMatch(query: query, listType: "wantlist")
+        if title != nil {
+            await indexCollection()
+        }
+        return title
+    }
+
     /// Donates the full collection + wantlist to Spotlight so records are
     /// findable in search and can open via `OpenReleaseIntent`. Replaces the
     /// index (rather than only adding) so records removed from the collection

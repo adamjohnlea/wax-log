@@ -38,27 +38,13 @@ struct StatisticsView: View {
     }
 
     private var summaryCards: some View {
-        HStack(spacing: 16) {
-            StatCard(title: "Total Releases", value: "\(releases.count)", icon: "music.note.house")
-            StatCard(title: "Artists", value: "\(uniqueArtists)", icon: "person.2")
-            StatCard(title: "Genres", value: "\(uniqueGenres)", icon: "guitars")
-            StatCard(title: "Avg Rating", value: averageRating, icon: "star")
+        let stats = CollectionStats(releases: Array(releases))
+        return HStack(spacing: 16) {
+            StatCard(title: "Total Releases", value: "\(stats.total)", icon: "music.note.house")
+            StatCard(title: "Artists", value: "\(stats.artists)", icon: "person.2")
+            StatCard(title: "Genres", value: "\(stats.genres)", icon: "guitars")
+            StatCard(title: "Avg Rating", value: stats.averageRatingText, icon: "star")
         }
-    }
-
-    private var uniqueArtists: Int {
-        Set(releases.compactMap(\.artist).filter { !$0.isEmpty }).count
-    }
-
-    private var uniqueGenres: Int {
-        Set(releases.compactMap(\.genre).flatMap { $0.components(separatedBy: ", ") }.filter { !$0.isEmpty }).count
-    }
-
-    private var averageRating: String {
-        let rated = releases.filter { $0.rating > 0 }
-        guard !rated.isEmpty else { return "N/A" }
-        let avg = Double(rated.reduce(0) { $0 + Int($1.rating) }) / Double(rated.count)
-        return String(format: "%.1f", avg)
     }
 }
 

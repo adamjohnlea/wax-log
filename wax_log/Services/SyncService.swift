@@ -526,6 +526,61 @@ final class SyncService {
         )
     }
 
+    // MARK: - Add from Discogs Search
+
+    /// Searches Discogs and adds the top matching release to the given list.
+    /// Returns the title that was added, or `nil` if there were no results.
+    @discardableResult
+    func addTopMatch(query: String, listType: String) async throws -> String? {
+        let response = try await discogsClient.search(query: query, type: "release", perPage: 5)
+        guard let top = response.results.first else { return nil }
+        try await addSearchResultToList(top, listType: listType)
+        return top.title
+    }
+
+    /// Adds a Discogs search result to the user's collection or wantlist on
+    /// Discogs, and creates a matching local entry (skipping duplicates).
+    func addSearchResultToList(_ result: SearchResult, listType: String) async throws {
+        guard let username = KeychainService.load(.discogsUsername), !username.isEmpty else {
+            throw SyncError.noUsername
+        }
+
+        if listType == "collection" {
+            try await discogsClient.addToCollection(username: username, releaseId: result.id)
+        } else {
+            try await discogsClient.addToWantlist(username: username, releaseId: result.id)
+        }
+
+        let context = persistenceController.container.newBackgroundContext()
+        context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+
+        try await context.perform {
+            // Skip if a local entry already exists for this list.
+            let existing = NSFetchRequest<Release>(entityName: "Release")
+            existing.predicate = NSPredicate(format: "discogsId == %lld AND listType == %@", Int64(result.id), listType)
+            existing.fetchLimit = 1
+            if (try? context.fetch(existing).first) != nil { return }
+
+            let release = Release(context: context)
+            release.discogsId = Int64(result.id)
+            release.title = result.title.components(separatedBy: " - ").last?.trimmingCharacters(in: .whitespaces) ?? result.title
+            release.artist = result.title.components(separatedBy: " - ").first?.trimmingCharacters(in: .whitespaces) ?? ""
+            release.year = Int32(Int(result.year ?? "0") ?? 0)
+            release.format = result.format?.first ?? ""
+            release.genre = result.genre?.joined(separator: ", ") ?? ""
+            release.style = result.style?.joined(separator: ", ") ?? ""
+            release.label = result.label?.first ?? ""
+            release.country = result.country ?? ""
+            release.imageURL = result.coverImage
+            release.listType = listType
+            release.dateAdded = Date()
+            release.enriched = false
+            release.barcode = result.barcode?.first
+
+            try context.save()
+        }
+    }
+
     // MARK: - Deduplication
 
     @discardableResult

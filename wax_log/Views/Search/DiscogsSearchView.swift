@@ -1,8 +1,7 @@
 import SwiftUI
-import CoreData
 
 struct DiscogsSearchView: View {
-    @Environment(\.managedObjectContext) private var viewContext
+    @Environment(AppModel.self) private var appModel
     @State private var searchText = ""
     @State private var results: [SearchResult] = []
     @State private var isSearching = false
@@ -114,45 +113,9 @@ struct DiscogsSearchView: View {
     // MARK: - Add to List
 
     private func addToList(result: SearchResult, listType: String) {
-        guard let username = KeychainService.load(.discogsUsername), !username.isEmpty else {
-            actionMessage = ActionMessage(text: "No Discogs username configured.", isSuccess: false)
-            return
-        }
-
         Task {
             do {
-                if listType == "collection" {
-                    try await DiscogsClient.shared.addToCollection(username: username, releaseId: result.id)
-                } else {
-                    try await DiscogsClient.shared.addToWantlist(username: username, releaseId: result.id)
-                }
-
-                // Also create a local Core Data entry, unless one already exists for this list.
-                let context = viewContext
-                let existing = NSFetchRequest<Release>(entityName: "Release")
-                existing.predicate = NSPredicate(format: "discogsId == %lld AND listType == %@", Int64(result.id), listType)
-                existing.fetchLimit = 1
-
-                if (try? context.fetch(existing).first) == nil {
-                    let release = Release(context: context)
-                    release.discogsId = Int64(result.id)
-                    release.title = result.title.components(separatedBy: " - ").last?.trimmingCharacters(in: .whitespaces) ?? result.title
-                    release.artist = result.title.components(separatedBy: " - ").first?.trimmingCharacters(in: .whitespaces) ?? ""
-                    release.year = Int32(Int(result.year ?? "0") ?? 0)
-                    release.format = result.format?.first ?? ""
-                    release.genre = result.genre?.joined(separator: ", ") ?? ""
-                    release.style = result.style?.joined(separator: ", ") ?? ""
-                    release.label = result.label?.first ?? ""
-                    release.country = result.country ?? ""
-                    release.imageURL = result.coverImage
-                    release.listType = listType
-                    release.dateAdded = Date()
-                    release.enriched = false
-                    release.barcode = result.barcode?.first
-
-                    try context.save()
-                }
-
+                try await appModel.syncService.addSearchResultToList(result, listType: listType)
                 let label = listType == "collection" ? "collection" : "wantlist"
                 withAnimation {
                     actionMessage = ActionMessage(text: "Added to \(label)!", isSuccess: true)
