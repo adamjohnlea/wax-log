@@ -26,6 +26,7 @@ final class AppModel {
 
     private let persistenceController: PersistenceController
     private let savedSectionKey = "selectedSection"
+    private let spotlightSeededKey = "spotlightSeeded"
 
     /// Named Spotlight index for the collection (a named index is recommended
     /// over the default for app content).
@@ -98,17 +99,25 @@ final class AppModel {
     /// re-indexing so it's searchable. Returns the added title, or `nil` if
     /// nothing matched.
     func addToWantlist(matching query: String) async throws -> String? {
-        let title = try await syncService.addTopMatch(query: query, listType: "wantlist")
-        if title != nil {
-            await indexCollection()
+        guard let result = try await syncService.addTopMatch(query: query, listType: "wantlist") else {
+            return nil
         }
-        return title
+        await indexRelease(discogsId: Int64(result.id), listType: "wantlist")
+        return result.title
     }
 
-    /// Donates the full collection + wantlist to Spotlight so records are
-    /// findable in search and can open via `OpenReleaseIntent`. Replaces the
-    /// index (rather than only adding) so records removed from the collection
-    /// don't linger as stale search results. Best-effort.
+    /// Seeds the Spotlight index once per install, for data synced before
+    /// indexing existed. After that, incremental add/remove plus the full
+    /// reconcile on each sync keep it current — so we don't re-index the whole
+    /// collection on every launch.
+    func indexCollectionIfNeeded() async {
+        guard !UserDefaults.standard.bool(forKey: spotlightSeededKey) else { return }
+        await indexCollection()
+    }
+
+    /// Donates the full collection + wantlist to Spotlight, replacing the index
+    /// so records removed elsewhere don't linger as stale results. Run after a
+    /// sync, where the whole dataset may have changed. Best-effort.
     func indexCollection() async {
         let context = persistenceController.container.newBackgroundContext()
         let entities: [ReleaseEntity] = await context.perform {
@@ -122,9 +131,30 @@ final class AppModel {
             if !entities.isEmpty {
                 try await index.indexAppEntities(entities)
             }
+            UserDefaults.standard.set(true, forKey: spotlightSeededKey)
         } catch {
             // Spotlight indexing is best-effort; a failure shouldn't disrupt the app.
         }
+    }
+
+    /// Adds or updates a single release in the Spotlight index.
+    func indexRelease(discogsId: Int64, listType: String) async {
+        let context = persistenceController.container.newBackgroundContext()
+        let entity: ReleaseEntity? = await context.perform {
+            let request = NSFetchRequest<Release>(entityName: "Release")
+            request.predicate = NSPredicate(format: "discogsId == %lld AND listType == %@", discogsId, listType)
+            request.fetchLimit = 1
+            return (try? context.fetch(request).first).map(ReleaseEntity.init(release:))
+        }
+        guard let entity else { return }
+        try? await CSSearchableIndex(name: Self.spotlightIndexName).indexAppEntities([entity])
+    }
+
+    /// Removes a single release from the Spotlight index.
+    func deindexRelease(discogsId: Int64, listType: String) async {
+        let id = "\(discogsId)-\(listType)"
+        try? await CSSearchableIndex(name: Self.spotlightIndexName)
+            .deleteAppEntities(identifiedBy: [id], ofType: ReleaseEntity.self)
     }
 
     // MARK: - Randomizer

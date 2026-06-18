@@ -49,7 +49,7 @@ struct ContentView: View {
         }
         .onAppear {
             appModel.restoreSavedSection()
-            Task { await appModel.indexCollection() }
+            Task { await appModel.indexCollectionIfNeeded() }
         }
     }
 }

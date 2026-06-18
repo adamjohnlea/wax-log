@@ -1,4 +1,5 @@
 import AppIntents
+import MusicKit
 
 /// Picks a random record from the user's collection, opens the app, and
 /// navigates to it. Backed by `AppModel`, which is registered with
@@ -76,6 +77,40 @@ struct AddToWantlistIntent: AppIntent {
     }
 }
 
+/// Matches a record to Apple Music and plays the album.
+struct PlayRecordIntent: AppIntent {
+    static var title: LocalizedStringResource = "Play Record"
+    static var description = IntentDescription("Find a record on Apple Music and play the album.")
+
+    @Parameter(title: "Record")
+    var target: ReleaseEntity
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        // Ensure Apple Music access.
+        if await !AppleMusicService.shared.isAuthorized {
+            guard await AppleMusicService.shared.requestAuthorization() else {
+                return .result(dialog: "Vinyl Crate needs Apple Music access to play records. You can grant it in the app.")
+            }
+        }
+
+        // Reuse the app's matching logic (and its cache).
+        let album = try await AppleMusicService.shared.findAlbum(
+            artist: target.artist,
+            title: target.title,
+            discogsId: target.discogsId
+        )
+        guard let album else {
+            return .result(dialog: "I couldn't find \(target.title) on Apple Music.")
+        }
+
+        let player = ApplicationMusicPlayer.shared
+        player.queue = [album]
+        try await player.play()
+        return .result(dialog: "Playing \(album.title).")
+    }
+}
+
 /// Reports a summary of the collection (counts and average rating).
 struct CollectionStatsIntent: AppIntent {
     static var title: LocalizedStringResource = "Collection Stats"
@@ -130,6 +165,15 @@ struct VinylCrateShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Collection Stats",
             systemImageName: "chart.bar"
+        )
+        AppShortcut(
+            intent: PlayRecordIntent(),
+            phrases: [
+                "Play a record in \(.applicationName)",
+                "Play a record from \(.applicationName)"
+            ],
+            shortTitle: "Play Record",
+            systemImageName: "play.circle"
         )
     }
 }

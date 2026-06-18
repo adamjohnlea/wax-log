@@ -5,6 +5,7 @@ struct CollectionView: View {
     let listType: String
     @Binding var selectedRelease: NSManagedObjectID?
     @Environment(\.managedObjectContext) private var viewContext
+    @Environment(AppModel.self) private var appModel
     @AppStorage("sortOrder") private var sortOrderRaw: String = "dateAdded"
     @AppStorage("viewMode") private var viewModeRaw: String = "list"
     @State private var searchText = ""
@@ -211,9 +212,14 @@ struct CollectionView: View {
     }
 
     private func delete(_ release: Release) {
+        // Capture identity before deletion so we can remove it from Spotlight.
+        let discogsId = release.discogsId
+        let releaseListType = release.listType ?? "collection"
+
         viewContext.delete(release)
         do {
             try viewContext.save()
+            Task { await appModel.deindexRelease(discogsId: discogsId, listType: releaseListType) }
         } catch {
             actionError = error.localizedDescription
         }

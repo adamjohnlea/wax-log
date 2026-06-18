@@ -529,13 +529,13 @@ final class SyncService {
     // MARK: - Add from Discogs Search
 
     /// Searches Discogs and adds the top matching release to the given list.
-    /// Returns the title that was added, or `nil` if there were no results.
+    /// Returns the search result that was added, or `nil` if there were no results.
     @discardableResult
-    func addTopMatch(query: String, listType: String) async throws -> String? {
+    func addTopMatch(query: String, listType: String) async throws -> SearchResult? {
         let response = try await discogsClient.search(query: query, type: "release", perPage: 1)
         guard let top = response.results.first else { return nil }
         try await addSearchResultToList(top, listType: listType)
-        return top.title
+        return top
     }
 
     /// Adds a Discogs search result to the user's collection or wantlist on
