@@ -48,12 +48,14 @@ final class AppModel {
         }
     }
 
-    /// Call when the section changes: clear the detail selection and persist the
-    /// new section. Does not reassign `selectedSection`, so it's safe to call
-    /// from `.onChange(of: selectedSection)` without recursing.
-    func sectionDidChange() {
+    /// Handles a user picking a section in the sidebar: switch section, clear
+    /// the detail selection, and persist. Programmatic navigation (e.g.
+    /// `openRelease`) deliberately sets the section *without* going through here,
+    /// so it can set a section and a release together without one clearing the other.
+    func selectSection(_ section: SidebarSection?) {
+        selectedSection = section
         selectedRelease = nil
-        UserDefaults.standard.set(selectedSection?.rawValue ?? "collection", forKey: savedSectionKey)
+        UserDefaults.standard.set(section?.rawValue ?? "collection", forKey: savedSectionKey)
     }
 
     // MARK: - Sync actions (menu commands + intents)
@@ -93,7 +95,9 @@ final class AppModel {
     }
 
     /// Donates the full collection + wantlist to Spotlight so records are
-    /// findable in search and can open via `OpenReleaseIntent`. Best-effort.
+    /// findable in search and can open via `OpenReleaseIntent`. Replaces the
+    /// index (rather than only adding) so records removed from the collection
+    /// don't linger as stale search results. Best-effort.
     func indexCollection() async {
         let context = persistenceController.container.newBackgroundContext()
         let entities: [ReleaseEntity] = await context.perform {
@@ -101,9 +105,12 @@ final class AppModel {
             let releases = (try? context.fetch(request)) ?? []
             return releases.map(ReleaseEntity.init(release:))
         }
-        guard !entities.isEmpty else { return }
+        let index = CSSearchableIndex(name: Self.spotlightIndexName)
         do {
-            try await CSSearchableIndex(name: Self.spotlightIndexName).indexAppEntities(entities)
+            try await index.deleteAllSearchableItems()
+            if !entities.isEmpty {
+                try await index.indexAppEntities(entities)
+            }
         } catch {
             // Spotlight indexing is best-effort; a failure shouldn't disrupt the app.
         }

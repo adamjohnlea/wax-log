@@ -8,7 +8,13 @@ struct ContentView: View {
     var body: some View {
         @Bindable var appModel = appModel
         NavigationSplitView {
-            SidebarView(selection: $appModel.selectedSection)
+            // Route sidebar taps through selectSection so a user switching
+            // sections clears the detail selection, while programmatic
+            // navigation (openRelease/surpriseMe) can set both at once.
+            SidebarView(selection: Binding(
+                get: { appModel.selectedSection },
+                set: { appModel.selectSection($0) }
+            ))
         } content: {
             Group {
                 switch appModel.selectedSection {
@@ -44,9 +50,6 @@ struct ContentView: View {
         .onAppear {
             appModel.restoreSavedSection()
             Task { await appModel.indexCollection() }
-        }
-        .onChange(of: appModel.selectedSection) { _, _ in
-            appModel.sectionDidChange()
         }
     }
 }
