@@ -532,7 +532,7 @@ final class SyncService {
     /// Returns the title that was added, or `nil` if there were no results.
     @discardableResult
     func addTopMatch(query: String, listType: String) async throws -> String? {
-        let response = try await discogsClient.search(query: query, type: "release", perPage: 5)
+        let response = try await discogsClient.search(query: query, type: "release", perPage: 1)
         guard let top = response.results.first else { return nil }
         try await addSearchResultToList(top, listType: listType)
         return top.title
