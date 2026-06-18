@@ -21,6 +21,42 @@ struct SurpriseMeIntent: AppIntent {
     }
 }
 
+/// Opens a specific record in the app. Used both as a Shortcuts action and by
+/// Spotlight to open a record from a search result.
+struct OpenReleaseIntent: OpenIntent {
+    static var title: LocalizedStringResource = "Open Record"
+
+    @Parameter(title: "Record")
+    var target: ReleaseEntity
+
+    @Dependency private var appModel: AppModel
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        appModel.openRelease(discogsId: target.discogsId, listType: target.listType)
+        return .result()
+    }
+}
+
+/// Searches the collection and wantlist using the in-app query language
+/// (e.g. `genre:Jazz year:1960..1969`, or a plain artist/title).
+struct FindReleasesIntent: AppIntent {
+    static var title: LocalizedStringResource = "Find Records"
+    static var description = IntentDescription("Search your collection and wantlist.")
+
+    @Parameter(title: "Search", description: #"An artist or title, or a query like "genre:Jazz year:1960..1969""#)
+    var query: String
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ReturnsValue<[ReleaseEntity]> & ProvidesDialog {
+        let results = try await ReleaseEntityQuery().entities(matching: query)
+        let dialog: IntentDialog = results.isEmpty
+            ? "No records matched \(query)."
+            : "Found \(results.count) record\(results.count == 1 ? "" : "s")."
+        return .result(value: results, dialog: dialog)
+    }
+}
+
 /// Exposes the app's intents to Siri and the Shortcuts app.
 ///
 /// Note: macOS doesn't surface pre-configured App Shortcuts system-wide the way
@@ -36,6 +72,15 @@ struct VinylCrateShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Surprise Me",
             systemImageName: "dice"
+        )
+        AppShortcut(
+            intent: FindReleasesIntent(),
+            phrases: [
+                "Find a record in \(.applicationName)",
+                "Search my records in \(.applicationName)"
+            ],
+            shortTitle: "Find Records",
+            systemImageName: "magnifyingglass"
         )
     }
 }

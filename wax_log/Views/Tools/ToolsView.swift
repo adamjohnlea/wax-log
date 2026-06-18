@@ -1,5 +1,6 @@
 import SwiftUI
 import CoreData
+import CoreSpotlight
 
 struct ToolsView: View {
     @Environment(\.managedObjectContext) private var viewContext
@@ -371,8 +372,9 @@ struct ToolsView: View {
             return
         }
 
-        // Clear image cache
+        // Clear image cache and the Spotlight index
         Task {
+            try? await CSSearchableIndex(name: AppModel.spotlightIndexName).deleteAllSearchableItems()
             do {
                 try await ImageCacheService.shared.clearCache()
                 updateCacheSize()

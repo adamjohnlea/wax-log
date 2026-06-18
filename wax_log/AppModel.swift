@@ -1,5 +1,7 @@
 import SwiftUI
 import CoreData
+import CoreSpotlight
+import AppIntents
 
 /// App-wide navigation and action state.
 ///
@@ -24,6 +26,10 @@ final class AppModel {
 
     private let persistenceController: PersistenceController
     private let savedSectionKey = "selectedSection"
+
+    /// Named Spotlight index for the collection (a named index is recommended
+    /// over the default for app content).
+    static let spotlightIndexName = "VinylCrateReleases"
 
     init(persistenceController: PersistenceController = .shared) {
         self.persistenceController = persistenceController
@@ -53,15 +59,54 @@ final class AppModel {
     // MARK: - Sync actions (menu commands + intents)
 
     func syncCollection() {
-        Task { await syncService.performInitialSync() }
+        Task {
+            await syncService.performInitialSync()
+            await indexCollection()
+        }
     }
 
     func refreshCollection() {
-        Task { await syncService.performIncrementalRefresh() }
+        Task {
+            await syncService.performIncrementalRefresh()
+            await indexCollection()
+        }
     }
 
     func enrichAll() {
         Task { await syncService.enrichAllReleases() }
+    }
+
+    // MARK: - App Intents support
+
+    /// Navigates to a specific release. Called by `OpenReleaseIntent` (including
+    /// Spotlight-launched opens).
+    func openRelease(discogsId: Int64, listType: String) {
+        let context = persistenceController.container.viewContext
+        let request = NSFetchRequest<Release>(entityName: "Release")
+        request.predicate = NSPredicate(format: "discogsId == %lld AND listType == %@", discogsId, listType)
+        request.fetchLimit = 1
+        guard let release = try? context.fetch(request).first else { return }
+
+        selectedSection = listType == "wantlist" ? .wantlist : .collection
+        selectedRelease = release.objectID
+        UserDefaults.standard.set(selectedSection?.rawValue ?? "collection", forKey: savedSectionKey)
+    }
+
+    /// Donates the full collection + wantlist to Spotlight so records are
+    /// findable in search and can open via `OpenReleaseIntent`. Best-effort.
+    func indexCollection() async {
+        let context = persistenceController.container.newBackgroundContext()
+        let entities: [ReleaseEntity] = await context.perform {
+            let request = NSFetchRequest<Release>(entityName: "Release")
+            let releases = (try? context.fetch(request)) ?? []
+            return releases.map(ReleaseEntity.init(release:))
+        }
+        guard !entities.isEmpty else { return }
+        do {
+            try await CSSearchableIndex(name: Self.spotlightIndexName).indexAppEntities(entities)
+        } catch {
+            // Spotlight indexing is best-effort; a failure shouldn't disrupt the app.
+        }
     }
 
     // MARK: - Randomizer

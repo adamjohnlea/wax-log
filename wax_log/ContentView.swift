@@ -43,6 +43,7 @@ struct ContentView: View {
         }
         .onAppear {
             appModel.restoreSavedSection()
+            Task { await appModel.indexCollection() }
         }
         .onChange(of: appModel.selectedSection) { _, _ in
             appModel.sectionDidChange()
