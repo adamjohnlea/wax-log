@@ -26,11 +26,13 @@ final class AppModel {
 
     private let persistenceController: PersistenceController
     private let savedSectionKey = "selectedSection"
-    private let spotlightSeededKey = "spotlightSeeded"
 
     /// Named Spotlight index for the collection (a named index is recommended
     /// over the default for app content).
     static let spotlightIndexName = "VinylCrateReleases"
+
+    /// UserDefaults flag tracking whether the Spotlight index has been seeded.
+    static let spotlightSeededKey = "spotlightSeeded"
 
     init(persistenceController: PersistenceController = .shared) {
         self.persistenceController = persistenceController
@@ -111,7 +113,7 @@ final class AppModel {
     /// reconcile on each sync keep it current — so we don't re-index the whole
     /// collection on every launch.
     func indexCollectionIfNeeded() async {
-        guard !UserDefaults.standard.bool(forKey: spotlightSeededKey) else { return }
+        guard !UserDefaults.standard.bool(forKey: Self.spotlightSeededKey) else { return }
         await indexCollection()
     }
 
@@ -131,7 +133,7 @@ final class AppModel {
             if !entities.isEmpty {
                 try await index.indexAppEntities(entities)
             }
-            UserDefaults.standard.set(true, forKey: spotlightSeededKey)
+            UserDefaults.standard.set(true, forKey: Self.spotlightSeededKey)
         } catch {
             // Spotlight indexing is best-effort; a failure shouldn't disrupt the app.
         }

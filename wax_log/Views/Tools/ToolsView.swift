@@ -387,6 +387,7 @@ struct ToolsView: View {
         UserDefaults.standard.removeObject(forKey: "lastSyncDate")
         UserDefaults.standard.removeObject(forKey: "imageDailyCount")
         UserDefaults.standard.removeObject(forKey: "imageDailyResetDate")
+        UserDefaults.standard.removeObject(forKey: AppModel.spotlightSeededKey)
     }
 }
 

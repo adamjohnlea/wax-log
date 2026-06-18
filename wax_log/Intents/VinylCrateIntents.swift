@@ -90,7 +90,7 @@ struct PlayRecordIntent: AppIntent {
         // Ensure Apple Music access.
         if await !AppleMusicService.shared.isAuthorized {
             guard await AppleMusicService.shared.requestAuthorization() else {
-                return .result(dialog: "Vinyl Crate needs Apple Music access to play records. You can grant it in the app.")
+                return .result(dialog: "Open Vinyl Crate and connect Apple Music, then try again.")
             }
         }
 
