@@ -51,6 +51,9 @@ struct ContentView: View {
             appModel.restoreSavedSection()
             Task { await appModel.indexCollectionIfNeeded() }
         }
+        .task {
+            await appModel.observeRemoteChanges()
+        }
     }
 }
 

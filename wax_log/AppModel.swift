@@ -34,6 +34,9 @@ final class AppModel {
     /// UserDefaults flag tracking whether the Spotlight index has been seeded.
     static let spotlightSeededKey = "spotlightSeeded"
 
+    /// Debounce handle for reindexing after iCloud remote changes.
+    private var reindexTask: Task<Void, Never>?
+
     init(persistenceController: PersistenceController = .shared) {
         self.persistenceController = persistenceController
         self.syncService = SyncService(persistenceController: persistenceController)
@@ -136,6 +139,20 @@ final class AppModel {
             UserDefaults.standard.set(true, forKey: Self.spotlightSeededKey)
         } catch {
             // Spotlight indexing is best-effort; a failure shouldn't disrupt the app.
+        }
+    }
+
+    /// Reindexes Spotlight when Core Data changes arrive from another device via
+    /// iCloud, so multi-device collections stay searchable without a manual sync.
+    /// Debounced, because a CloudKit import posts a burst of notifications.
+    func observeRemoteChanges() async {
+        for await _ in NotificationCenter.default.notifications(named: .NSPersistentStoreRemoteChange) {
+            reindexTask?.cancel()
+            reindexTask = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(2))
+                guard !Task.isCancelled else { return }
+                await self?.indexCollection()
+            }
         }
     }
 

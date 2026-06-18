@@ -22,6 +22,10 @@ nonisolated enum KeychainService {
 
         var addQuery = query
         addQuery[kSecValueData as String] = data
+        // Keep credentials on this device only (not synced to iCloud Keychain or
+        // restored to another Mac), but available to background work like App
+        // Intents after the first unlock.
+        addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
 
         let status = SecItemAdd(addQuery as CFDictionary, nil)
         guard status == errSecSuccess else {
