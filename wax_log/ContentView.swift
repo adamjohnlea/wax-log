@@ -21,14 +21,14 @@ struct ContentView: View {
                 case .statistics:
                     StatisticsView()
                 case .randomizer:
-                    RandomizerView()
+                    RandomizerView(selectedRelease: $selectedRelease)
                 case .discogsSearch:
                     DiscogsSearchView()
                 case .tools:
                     ToolsView()
                 case .smartCollection(let objectID):
                     if let sc = try? viewContext.existingObject(with: objectID) as? SmartCollection {
-                        SmartCollectionView(smartCollection: sc)
+                        SmartCollectionView(smartCollection: sc, selectedRelease: $selectedRelease)
                     }
                 case nil:
                     ContentUnavailableView("Vinyl Crate", systemImage: "music.note.house", description: Text("Select a section from the sidebar."))
@@ -95,7 +95,9 @@ enum SidebarSection: Hashable {
         case "randomizer": self = .randomizer
         case "discogsSearch": self = .discogsSearch
         case "tools": self = .tools
-        default: self = .collection
+        // Smart collections aren't restorable from a raw string (their identity is an
+        // NSManagedObjectID), so unknown values fail and the default selection is kept.
+        default: return nil
         }
     }
 }

@@ -8,15 +8,15 @@ struct CollectionView: View {
     @AppStorage("sortOrder") private var sortOrderRaw: String = "dateAdded"
     @AppStorage("viewMode") private var viewModeRaw: String = "list"
     @State private var searchText = ""
+    @State private var releaseToDelete: Release?
+    @State private var actionError: String?
 
     private var sortOrder: SortOrder {
-        get { SortOrder(rawValue: sortOrderRaw) ?? .dateAdded }
-        set { sortOrderRaw = newValue.rawValue }
+        SortOrder(rawValue: sortOrderRaw) ?? .dateAdded
     }
 
     private var viewMode: ViewMode {
-        get { ViewMode(rawValue: viewModeRaw) ?? .list }
-        set { viewModeRaw = newValue.rawValue }
+        ViewMode(rawValue: viewModeRaw) ?? .list
     }
 
     @FetchRequest private var releases: FetchedResults<Release>
@@ -24,8 +24,17 @@ struct CollectionView: View {
     init(listType: String, selectedRelease: Binding<NSManagedObjectID?>) {
         self.listType = listType
         self._selectedRelease = selectedRelease
+
+        // Persist sort order and view mode per list so Collection and Wantlist stay independent.
+        _sortOrderRaw = AppStorage(wrappedValue: SortOrder.dateAdded.rawValue, "sortOrder_\(listType)")
+        _viewModeRaw = AppStorage(wrappedValue: ViewMode.list.rawValue, "viewMode_\(listType)")
+
+        // Seed the fetch request with the persisted sort order so the saved order
+        // applies on first render — .onChange does not fire on initial appearance.
+        let savedSort = UserDefaults.standard.string(forKey: "sortOrder_\(listType)")
+        let initialSort = SortOrder(rawValue: savedSort ?? "") ?? .dateAdded
         _releases = FetchRequest(
-            sortDescriptors: [NSSortDescriptor(keyPath: \Release.dateAdded, ascending: false)],
+            sortDescriptors: initialSort.descriptors,
             predicate: NSPredicate(format: "listType == %@", listType),
             animation: .default
         )
@@ -98,6 +107,24 @@ struct CollectionView: View {
         .onReceive(NotificationCenter.default.publisher(for: .switchToGridView)) { _ in
             viewModeRaw = ViewMode.grid.rawValue
         }
+        .confirmationDialog(
+            "Remove Release",
+            isPresented: Binding(get: { releaseToDelete != nil }, set: { if !$0 { releaseToDelete = nil } }),
+            presenting: releaseToDelete
+        ) { release in
+            Button("Remove", role: .destructive) { delete(release) }
+            Button("Cancel", role: .cancel) {}
+        } message: { release in
+            Text("Remove \"\(release.title ?? "this release")\" from your local \(listType == "collection" ? "collection" : "wantlist")? It will reappear on the next sync unless you also remove it on Discogs.")
+        }
+        .alert(
+            "Couldn’t Complete Action",
+            isPresented: Binding(get: { actionError != nil }, set: { if !$0 { actionError = nil } })
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(actionError ?? "")
+        }
     }
 
     // MARK: - List View
@@ -162,8 +189,12 @@ struct CollectionView: View {
             Button {
                 let objectID = release.objectID
                 Task {
-                    let syncService = SyncService()
-                    await syncService.enrichSingleRelease(objectID)
+                    do {
+                        let syncService = SyncService()
+                        try await syncService.enrichSingleRelease(objectID)
+                    } catch {
+                        actionError = error.localizedDescription
+                    }
                 }
             } label: {
                 Label("Enrich", systemImage: "sparkles")
@@ -173,10 +204,18 @@ struct CollectionView: View {
         }
 
         Button(role: .destructive) {
-            viewContext.delete(release)
-            try? viewContext.save()
+            releaseToDelete = release
         } label: {
             Label("Remove from \(listType == "collection" ? "Collection" : "Wantlist")", systemImage: "trash")
+        }
+    }
+
+    private func delete(_ release: Release) {
+        viewContext.delete(release)
+        do {
+            try viewContext.save()
+        } catch {
+            actionError = error.localizedDescription
         }
     }
 

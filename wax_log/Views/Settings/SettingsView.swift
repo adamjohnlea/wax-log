@@ -145,7 +145,9 @@ struct SettingsView: View {
                     .buttonStyle(.borderedProminent)
                 } else if musicAuthStatus == .denied {
                     Button("Open System Settings") {
-                        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Media")!)
+                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Media") {
+                            NSWorkspace.shared.open(url)
+                        }
                     }
                 }
             }
@@ -214,9 +216,18 @@ struct SettingsView: View {
         isTestingConnection = true
         connectionTestResult = nil
 
-        // Save first so the client can use the credentials
-        try? KeychainService.save(discogsUsername, for: .discogsUsername)
-        try? KeychainService.save(discogsToken, for: .discogsToken)
+        // Save first so the client can use the credentials.
+        do {
+            try KeychainService.save(discogsUsername, for: .discogsUsername)
+            try KeychainService.save(discogsToken, for: .discogsToken)
+        } catch {
+            connectionTestResult = ConnectionTestResult(
+                message: "Couldn’t save credentials: \(error.localizedDescription)",
+                isSuccess: false
+            )
+            isTestingConnection = false
+            return
+        }
 
         Task {
             do {

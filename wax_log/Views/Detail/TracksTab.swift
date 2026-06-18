@@ -11,6 +11,8 @@ struct TracksTab: View {
     @State private var musicAuthStatus: MusicAuthorization.Status = MusicAuthorization.currentStatus
     @State private var playingTrackIndex: Int?
     @State private var isPlaying = false
+    @State private var enrichError: String?
+    @State private var playbackError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -63,6 +65,12 @@ struct TracksTab: View {
                         }
                     }
                     .disabled(isEnriching)
+
+                    if let enrichError {
+                        Text(enrichError)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
                 }
             } else {
                 ContentUnavailableView(
@@ -212,6 +220,7 @@ struct TracksTab: View {
                             Image(systemName: isPlaying ? "pause.fill" : "play.fill")
                         }
                         .buttonStyle(.borderless)
+                        .accessibilityLabel(isPlaying ? "Pause" : "Resume")
 
                         if let index = playingTrackIndex, index < tracks.count {
                             Text("Now playing: \(tracks[index].title)")
@@ -228,8 +237,16 @@ struct TracksTab: View {
                             Image(systemName: "stop.fill")
                         }
                         .buttonStyle(.borderless)
+                        .accessibilityLabel("Stop playback")
                     }
                     .padding(.vertical, 4)
+
+                    if let playbackError {
+                        Text(playbackError)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+
                     Divider()
                 }
 
@@ -244,6 +261,7 @@ struct TracksTab: View {
                                     .foregroundStyle(playingTrackIndex == index ? .pink : .secondary)
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("Play \(track.title)")
 
                             Text("\(index + 1)")
                                 .font(.caption.monospacedDigit())
@@ -303,10 +321,17 @@ struct TracksTab: View {
     private func playTrack(_ track: Track, at index: Int) {
         playingTrackIndex = index
         isPlaying = true
+        playbackError = nil
         Task {
-            let player = ApplicationMusicPlayer.shared
-            player.queue = [track]
-            try? await player.play()
+            do {
+                let player = ApplicationMusicPlayer.shared
+                player.queue = [track]
+                try await player.play()
+            } catch {
+                isPlaying = false
+                playingTrackIndex = nil
+                playbackError = error.localizedDescription
+            }
         }
     }
 
@@ -316,9 +341,14 @@ struct TracksTab: View {
             player.pause()
             isPlaying = false
         } else {
+            playbackError = nil
             Task {
-                try? await player.play()
-                isPlaying = true
+                do {
+                    try await player.play()
+                    isPlaying = true
+                } catch {
+                    playbackError = error.localizedDescription
+                }
             }
         }
     }
@@ -338,10 +368,15 @@ struct TracksTab: View {
 
     private func enrich() {
         isEnriching = true
+        enrichError = nil
         let objectID = release.objectID
         Task {
-            let syncService = SyncService()
-            await syncService.enrichSingleRelease(objectID)
+            do {
+                let syncService = SyncService()
+                try await syncService.enrichSingleRelease(objectID)
+            } catch {
+                enrichError = error.localizedDescription
+            }
             isEnriching = false
         }
     }

@@ -325,19 +325,19 @@ final class SyncService {
         isSyncing = false
     }
 
-    func enrichSingleRelease(_ objectID: NSManagedObjectID) async {
+    /// Enrich a single release with full Discogs detail. Throws so callers can surface failures.
+    func enrichSingleRelease(_ objectID: NSManagedObjectID) async throws {
         let context = persistenceController.container.newBackgroundContext()
         context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
 
-        guard let fetchedRelease = try? await context.perform({ try context.existingObject(with: objectID) as? Release }) else { return }
+        guard let fetchedRelease = try await context.perform({ try context.existingObject(with: objectID) as? Release }) else { return }
         nonisolated(unsafe) let release = fetchedRelease
 
         let discogsId = await context.perform { Int(release.discogsId) }
 
-        do {
-            let detail = try await discogsClient.getReleaseDetail(releaseId: discogsId)
+        let detail = try await discogsClient.getReleaseDetail(releaseId: discogsId)
 
-            await context.perform {
+        try await context.perform {
                 if let tracks = detail.tracklist {
                     let trackData: [[String: String]] = tracks.compactMap { track in
                         guard track.type == nil || track.type == "track" else { return nil }
@@ -404,11 +404,8 @@ final class SyncService {
                 }
 
                 release.enriched = true
-                try? context.save()
+                try context.save()
             }
-        } catch {
-            // Silently fail for single enrichment
-        }
     }
 
     // MARK: - Image Backfill

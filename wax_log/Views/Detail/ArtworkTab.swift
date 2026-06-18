@@ -7,6 +7,7 @@ struct ArtworkTab: View {
     @State private var selectedLightboxImage: LightboxItem?
     @State private var isDownloading = false
     @State private var isEnriching = false
+    @State private var enrichError: String?
     @State private var downloadCurrent = 0
     @State private var downloadTotal = 0
 
@@ -32,6 +33,12 @@ struct ArtworkTab: View {
                                 }
                             }
                             .disabled(isEnriching)
+
+                            if let enrichError {
+                                Text(enrichError)
+                                    .font(.caption)
+                                    .foregroundStyle(.red)
+                            }
                         }
                     } else if release.decodedAdditionalImages?.isEmpty != false {
                         ContentUnavailableView(
@@ -194,11 +201,16 @@ struct ArtworkTab: View {
 
     private func reEnrich() {
         isEnriching = true
+        enrichError = nil
         let objectID = release.objectID
         Task {
-            let syncService = SyncService()
-            await syncService.enrichSingleRelease(objectID)
-            await loadImages()
+            do {
+                let syncService = SyncService()
+                try await syncService.enrichSingleRelease(objectID)
+                await loadImages()
+            } catch {
+                enrichError = error.localizedDescription
+            }
             isEnriching = false
         }
     }

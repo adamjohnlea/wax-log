@@ -2,6 +2,7 @@ import SwiftUI
 import CoreData
 
 struct RandomizerView: View {
+    @Binding var selectedRelease: NSManagedObjectID?
     @Environment(\.managedObjectContext) private var viewContext
     @State private var randomRelease: Release?
     @State private var isAnimating = false
@@ -67,7 +68,9 @@ struct RandomizerView: View {
                         .buttonStyle(.borderedProminent)
                         .controlSize(.large)
 
-                        NavigationLink(value: release.objectID) {
+                        Button {
+                            selectedRelease = release.objectID
+                        } label: {
                             Label("View Details", systemImage: "info.circle")
                         }
                         .buttonStyle(.bordered)
@@ -103,10 +106,21 @@ struct RandomizerView: View {
         guard !releases.isEmpty else { return }
         isAnimating = true
         withAnimation(.easeInOut(duration: 0.15)) {
-            randomRelease = releases.randomElement()
+            randomRelease = nextRandomRelease()
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(0.15))
             isAnimating = false
         }
+    }
+
+    /// Picks a release at random, avoiding an immediate repeat when more than one exists.
+    private func nextRandomRelease() -> Release? {
+        guard releases.count > 1 else { return releases.first }
+        var candidate = releases.randomElement()
+        while candidate?.objectID == randomRelease?.objectID {
+            candidate = releases.randomElement()
+        }
+        return candidate
     }
 }

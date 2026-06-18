@@ -52,12 +52,15 @@ struct AdvancedSearchView: View {
                                 .foregroundStyle(ratingMin == 0 ? .primary : .secondary)
                                 .padding(.trailing, 8)
                             } else {
-                                Image(systemName: star <= ratingMin ? "star.fill" : "star")
-                                    .foregroundStyle(star <= ratingMin ? .yellow : .secondary)
-                                    .font(.title3)
-                                    .onTapGesture {
-                                        ratingMin = ratingMin == star ? 0 : star
-                                    }
+                                Button {
+                                    ratingMin = ratingMin == star ? 0 : star
+                                } label: {
+                                    Image(systemName: star <= ratingMin ? "star.fill" : "star")
+                                        .foregroundStyle(star <= ratingMin ? .yellow : .secondary)
+                                        .font(.title3)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Minimum rating \(star) star\(star == 1 ? "" : "s")")
                             }
                         }
                     }
@@ -166,7 +169,7 @@ struct AdvancedSearchView: View {
             case "rating":
                 if value.contains("..") {
                     let parts = value.split(separator: ".").filter { !$0.isEmpty }
-                    if let min = Int(parts[0]) { ratingMin = min }
+                    if let first = parts.first, let min = Int(first) { ratingMin = min }
                 } else if let val = Int(value) {
                     ratingMin = val
                 }

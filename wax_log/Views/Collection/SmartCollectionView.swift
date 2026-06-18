@@ -3,14 +3,16 @@ import CoreData
 
 struct SmartCollectionView: View {
     @ObservedObject var smartCollection: SmartCollection
+    @Binding var selectedRelease: NSManagedObjectID?
     @Environment(\.managedObjectContext) private var viewContext
     @State private var viewMode: ViewMode = .list
     @State private var sortOrder: SortOrder = .dateAdded
 
     @FetchRequest private var releases: FetchedResults<Release>
 
-    init(smartCollection: SmartCollection) {
+    init(smartCollection: SmartCollection, selectedRelease: Binding<NSManagedObjectID?>) {
         self.smartCollection = smartCollection
+        self._selectedRelease = selectedRelease
         let predicate = SearchService.predicate(from: smartCollection.query ?? "")
         _releases = FetchRequest(
             sortDescriptors: [NSSortDescriptor(keyPath: \Release.dateAdded, ascending: false)],
@@ -30,17 +32,19 @@ struct SmartCollectionView: View {
             } else {
                 switch viewMode {
                 case .list:
-                    List(releases, id: \.objectID) { release in
-                        NavigationLink(value: release.objectID) {
-                            ReleaseRow(release: release)
-                        }
+                    List(releases, id: \.objectID, selection: $selectedRelease) { release in
+                        ReleaseRow(release: release)
+                            .tag(release.objectID)
                     }
                 case .grid:
                     ScrollView {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 180, maximum: 220))], spacing: 16) {
                             ForEach(releases, id: \.objectID) { release in
-                                NavigationLink(value: release.objectID) {
+                                Button {
+                                    selectedRelease = release.objectID
+                                } label: {
                                     ReleaseCard(release: release)
+                                        .background(selectedRelease == release.objectID ? Color.accentColor.opacity(0.15) : Color.clear)
                                 }
                                 .buttonStyle(.plain)
                             }

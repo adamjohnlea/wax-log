@@ -5,6 +5,8 @@ struct ToolsView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @State private var syncService = SyncService()
     @State private var showingResetConfirmation = false
+    @State private var showingClearCacheConfirmation = false
+    @State private var toolsError: String?
 
     @FetchRequest(sortDescriptors: [], predicate: NSPredicate(format: "listType == %@", "collection"))
     private var collectionReleases: FetchedResults<Release>
@@ -48,11 +50,25 @@ struct ToolsView: View {
         .onAppear { updateCacheSize() }
         .alert("Reset All Data", isPresented: $showingResetConfirmation) {
             Button("Cancel", role: .cancel) {}
-            Button("Delete Everything", role: .destructive) {
+            Button("Delete Everywhere", role: .destructive) {
                 resetAllData()
             }
         } message: {
-            Text("This will delete all local releases, smart collections, and cached images. Your Discogs account is not affected. This cannot be undone.")
+            Text("This deletes all releases, smart collections, and cached images from this Mac and iCloud — removing them from all your devices. Your Discogs account is not affected, so you can re-sync. This cannot be undone.")
+        }
+        .alert("Clear Image Cache", isPresented: $showingClearCacheConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Clear", role: .destructive) { clearImageCache() }
+        } message: {
+            Text("This deletes all locally cached cover art. Images will be re-downloaded from Discogs as needed.")
+        }
+        .alert(
+            "Operation Failed",
+            isPresented: Binding(get: { toolsError != nil }, set: { if !$0 { toolsError = nil } })
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(toolsError ?? "")
         }
     }
 
@@ -213,9 +229,7 @@ struct ToolsView: View {
                         .foregroundStyle(.secondary)
                     Spacer()
                     Button("Clear Cache") {
-                        Task {
-                            try? await ImageCacheService.shared.clearCache()
-                        }
+                        showingClearCacheConfirmation = true
                     }
                 }
             }
@@ -305,7 +319,7 @@ struct ToolsView: View {
                     Text("Reset All Data")
                         .font(.callout.weight(.medium))
                         .foregroundStyle(.red)
-                    Text("Delete all local releases, smart collections, and cached images.")
+                    Text("Delete all releases, smart collections, and cached images from this Mac and iCloud (all devices).")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -323,29 +337,54 @@ struct ToolsView: View {
 
     // MARK: - Actions
 
+    private func clearImageCache() {
+        Task {
+            do {
+                try await ImageCacheService.shared.clearCache()
+                updateCacheSize()
+            } catch {
+                toolsError = error.localizedDescription
+            }
+        }
+    }
+
     private func resetAllData() {
         let context = viewContext
 
-        // Delete all releases
-        let releaseRequest = NSFetchRequest<NSFetchRequestResult>(entityName: "Release")
-        let releaseDelete = NSBatchDeleteRequest(fetchRequest: releaseRequest)
-        _ = try? context.execute(releaseDelete)
+        // Delete through the context (not NSBatchDeleteRequest) so the deletions are
+        // recorded in persistent history and exported to CloudKit — removing the data
+        // from iCloud and every synced device, instead of letting it sync back.
+        do {
+            let releaseRequest = NSFetchRequest<Release>(entityName: "Release")
+            for release in try context.fetch(releaseRequest) {
+                context.delete(release)
+            }
 
-        // Delete all smart collections
-        let scRequest = NSFetchRequest<NSFetchRequestResult>(entityName: "SmartCollection")
-        let scDelete = NSBatchDeleteRequest(fetchRequest: scRequest)
-        _ = try? context.execute(scDelete)
+            let scRequest = NSFetchRequest<SmartCollection>(entityName: "SmartCollection")
+            for collection in try context.fetch(scRequest) {
+                context.delete(collection)
+            }
+
+            try context.save()
+        } catch {
+            toolsError = "Failed to reset data: \(error.localizedDescription)"
+            return
+        }
 
         // Clear image cache
-        Task { try? await ImageCacheService.shared.clearCache() }
+        Task {
+            do {
+                try await ImageCacheService.shared.clearCache()
+                updateCacheSize()
+            } catch {
+                toolsError = "Data was reset, but clearing the image cache failed: \(error.localizedDescription)"
+            }
+        }
 
         // Reset sync state
         UserDefaults.standard.removeObject(forKey: "lastSyncDate")
         UserDefaults.standard.removeObject(forKey: "imageDailyCount")
         UserDefaults.standard.removeObject(forKey: "imageDailyResetDate")
-
-        // Refresh context
-        context.reset()
     }
 }
 

@@ -3,6 +3,7 @@ import SwiftUI
 struct CreditsTab: View {
     @ObservedObject var release: Release
     @State private var isEnriching = false
+    @State private var enrichError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -40,6 +41,12 @@ struct CreditsTab: View {
                         }
                     }
                     .disabled(isEnriching)
+
+                    if let enrichError {
+                        Text(enrichError)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
                 }
             } else {
                 ContentUnavailableView(
@@ -53,10 +60,15 @@ struct CreditsTab: View {
 
     private func enrich() {
         isEnriching = true
+        enrichError = nil
         let objectID = release.objectID
         Task {
-            let syncService = SyncService()
-            await syncService.enrichSingleRelease(objectID)
+            do {
+                let syncService = SyncService()
+                try await syncService.enrichSingleRelease(objectID)
+            } catch {
+                enrichError = error.localizedDescription
+            }
             isEnriching = false
         }
     }

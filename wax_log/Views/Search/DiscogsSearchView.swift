@@ -127,25 +127,31 @@ struct DiscogsSearchView: View {
                     try await DiscogsClient.shared.addToWantlist(username: username, releaseId: result.id)
                 }
 
-                // Also create a local Core Data entry
+                // Also create a local Core Data entry, unless one already exists for this list.
                 let context = viewContext
-                let release = Release(context: context)
-                release.discogsId = Int64(result.id)
-                release.title = result.title.components(separatedBy: " - ").last?.trimmingCharacters(in: .whitespaces) ?? result.title
-                release.artist = result.title.components(separatedBy: " - ").first?.trimmingCharacters(in: .whitespaces) ?? ""
-                release.year = Int32(Int(result.year ?? "0") ?? 0)
-                release.format = result.format?.first ?? ""
-                release.genre = result.genre?.joined(separator: ", ") ?? ""
-                release.style = result.style?.joined(separator: ", ") ?? ""
-                release.label = result.label?.first ?? ""
-                release.country = result.country ?? ""
-                release.imageURL = result.coverImage
-                release.listType = listType
-                release.dateAdded = Date()
-                release.enriched = false
-                release.barcode = result.barcode?.first
+                let existing = NSFetchRequest<Release>(entityName: "Release")
+                existing.predicate = NSPredicate(format: "discogsId == %lld AND listType == %@", Int64(result.id), listType)
+                existing.fetchLimit = 1
 
-                try? context.save()
+                if (try? context.fetch(existing).first) == nil {
+                    let release = Release(context: context)
+                    release.discogsId = Int64(result.id)
+                    release.title = result.title.components(separatedBy: " - ").last?.trimmingCharacters(in: .whitespaces) ?? result.title
+                    release.artist = result.title.components(separatedBy: " - ").first?.trimmingCharacters(in: .whitespaces) ?? ""
+                    release.year = Int32(Int(result.year ?? "0") ?? 0)
+                    release.format = result.format?.first ?? ""
+                    release.genre = result.genre?.joined(separator: ", ") ?? ""
+                    release.style = result.style?.joined(separator: ", ") ?? ""
+                    release.label = result.label?.first ?? ""
+                    release.country = result.country ?? ""
+                    release.imageURL = result.coverImage
+                    release.listType = listType
+                    release.dateAdded = Date()
+                    release.enriched = false
+                    release.barcode = result.barcode?.first
+
+                    try context.save()
+                }
 
                 let label = listType == "collection" ? "collection" : "wantlist"
                 withAnimation {

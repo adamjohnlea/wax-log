@@ -7,6 +7,7 @@ struct AddSmartCollectionView: View {
     @State private var name = ""
     @State private var query = ""
     @State private var showingAdvancedSearch = false
+    @State private var saveError: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -30,6 +31,13 @@ struct AddSmartCollectionView: View {
             Divider()
 
             HStack {
+                if let saveError {
+                    Text(saveError)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .lineLimit(2)
+                }
+
                 Spacer()
 
                 Button("Cancel") {
@@ -56,7 +64,11 @@ struct AddSmartCollectionView: View {
         collection.name = name
         collection.query = query
         collection.createdAt = Date()
-        try? viewContext.save()
-        dismiss()
+        do {
+            try viewContext.save()
+            dismiss()
+        } catch {
+            saveError = error.localizedDescription
+        }
     }
 }
