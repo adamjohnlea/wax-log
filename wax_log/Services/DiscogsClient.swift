@@ -76,6 +76,20 @@ actor DiscogsClient {
         try await sendRequest(url: url, method: "PUT")
     }
 
+    // MARK: - Remove from Collection / Wantlist
+
+    /// Remove a specific instance of a release from the user's collection.
+    func removeFromCollection(username: String, folderId: Int, releaseId: Int, instanceId: Int) async throws {
+        let url = baseURL.appendingPathComponent("/users/\(username)/collection/folders/\(folderId)/releases/\(releaseId)/instances/\(instanceId)")
+        try await sendRequest(url: url, method: "DELETE")
+    }
+
+    /// Remove a release from the user's wantlist.
+    func removeFromWantlist(username: String, releaseId: Int) async throws {
+        let url = baseURL.appendingPathComponent("/users/\(username)/wants/\(releaseId)")
+        try await sendRequest(url: url, method: "DELETE")
+    }
+
     // MARK: - Price Suggestions
 
     /// Suggested marketplace prices for a release, keyed by media condition
@@ -284,6 +298,7 @@ nonisolated struct PaginatedResponse<T: Decodable & Sendable>: Decodable, Sendab
 nonisolated struct CollectionRelease: Decodable, Sendable {
     let id: Int
     let instanceId: Int
+    let folderId: Int?
     let rating: Int
     let dateAdded: String
     let basicInformation: BasicInformation

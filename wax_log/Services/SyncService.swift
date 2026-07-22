@@ -685,6 +685,44 @@ final class SyncService {
         )
     }
 
+    // MARK: - Remove from Discogs
+
+    /// Remove a release from Discogs (collection instance or wantlist entry),
+    /// then delete the local record.
+    func removeRelease(_ objectID: NSManagedObjectID) async throws {
+        guard let username = KeychainService.load(.discogsUsername), !username.isEmpty else {
+            throw SyncError.noUsername
+        }
+
+        let context = persistenceController.container.viewContext
+        guard let release = try context.existingObject(with: objectID) as? Release else { return }
+
+        let discogsId = Int(release.discogsId)
+
+        if release.isCollection {
+            // Find the instance to delete; if Discogs has no instance the
+            // release only exists locally, so just remove the local record.
+            let instances = try await discogsClient.getCollectionInstances(username: username, releaseId: discogsId)
+            if let instance = instances.items.first {
+                try await discogsClient.removeFromCollection(
+                    username: username,
+                    folderId: instance.folderId ?? 1,
+                    releaseId: discogsId,
+                    instanceId: instance.instanceId
+                )
+            }
+        } else {
+            do {
+                try await discogsClient.removeFromWantlist(username: username, releaseId: discogsId)
+            } catch DiscogsError.notFound {
+                // Already absent from the wantlist on Discogs.
+            }
+        }
+
+        context.delete(release)
+        try context.save()
+    }
+
     // MARK: - Add from Discogs Search
 
     /// Searches Discogs and adds the top matching release to the given list.

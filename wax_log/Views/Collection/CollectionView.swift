@@ -116,7 +116,7 @@ struct CollectionView: View {
             Button("Remove", role: .destructive) { delete(release) }
             Button("Cancel", role: .cancel) {}
         } message: { release in
-            Text("Remove \"\(release.title ?? "this release")\" from your local \(listType == "collection" ? "collection" : "wantlist")? It will reappear on the next sync unless you also remove it on Discogs.")
+            Text("Remove \"\(release.title ?? "this release")\" from your \(listType == "collection" ? "collection" : "wantlist")? This also removes it from your Discogs account.")
         }
         .alert(
             "Couldn’t Complete Action",
@@ -215,12 +215,16 @@ struct CollectionView: View {
         // Capture identity before deletion so we can remove it from Spotlight.
         let discogsId = release.discogsId
         let releaseListType = release.listType ?? "collection"
-        viewContext.delete(release)
-        do {
-            try viewContext.save()
-            Task { await appModel.deindexRelease(discogsId: discogsId, listType: releaseListType) }
-        } catch {
-            actionError = error.localizedDescription
+        let objectID = release.objectID
+
+        Task {
+            do {
+                let syncService = SyncService()
+                try await syncService.removeRelease(objectID)
+                await appModel.deindexRelease(discogsId: discogsId, listType: releaseListType)
+            } catch {
+                actionError = error.localizedDescription
+            }
         }
     }
 
