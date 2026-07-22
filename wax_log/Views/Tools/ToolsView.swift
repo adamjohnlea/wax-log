@@ -172,6 +172,23 @@ struct ToolsView: View {
                     }
                     .disabled(syncService.isSyncing || unenrichedCount == 0)
                 }
+
+                Divider()
+
+                HStack {
+                    VStack(alignment: .leading) {
+                        Text("Refresh Values")
+                            .font(.callout.weight(.medium))
+                        Text("Update suggested prices for all enriched releases. Takes about a second per release due to Discogs rate limits.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Refresh Values") {
+                        Task { await syncService.refreshAllValues() }
+                    }
+                    .disabled(syncService.isSyncing || enrichedReleases.isEmpty)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -258,27 +275,50 @@ struct ToolsView: View {
 
     private var maintenanceSection: some View {
         GroupBox("Maintenance") {
-            HStack {
-                VStack(alignment: .leading) {
-                    Text("Deduplicate Releases")
-                        .font(.callout.weight(.medium))
-                    Text("Remove duplicate records caused by iCloud sync conflicts.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Button("Deduplicate") {
-                    let count = syncService.deduplicateReleases()
-                    dedupMessage = count > 0 ? "Removed \(count) duplicate\(count == 1 ? "" : "s")." : "No duplicates found."
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    VStack(alignment: .leading) {
+                        Text("Re-enrich Everything")
+                            .font(.callout.weight(.medium))
+                        Text("Re-download full details, community stats, videos, and prices for every release. Takes about 2 seconds per release due to Discogs rate limits.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Re-enrich") {
+                        Task { await syncService.reenrichAllReleases() }
+                    }
+                    .disabled(syncService.isSyncing || allReleases.isEmpty)
                 }
 
-                if let msg = dedupMessage {
-                    Text(msg)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                Divider()
+
+                deduplicateRow
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var deduplicateRow: some View {
+        HStack {
+            VStack(alignment: .leading) {
+                Text("Deduplicate Releases")
+                    .font(.callout.weight(.medium))
+                Text("Remove duplicate records caused by iCloud sync conflicts.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Deduplicate") {
+                let count = syncService.deduplicateReleases()
+                dedupMessage = count > 0 ? "Removed \(count) duplicate\(count == 1 ? "" : "s")." : "No duplicates found."
+            }
+
+            if let msg = dedupMessage {
+                Text(msg)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -409,6 +449,9 @@ struct SyncProgressView: View {
                 case .enriching:
                     Image(systemName: "sparkles")
                         .foregroundStyle(.orange)
+                case .refreshingValues:
+                    Image(systemName: "dollarsign.circle")
+                        .foregroundStyle(.green)
                 case .backfillingImages:
                     Image(systemName: "photo.on.rectangle.angled")
                         .foregroundStyle(.teal)
@@ -448,6 +491,7 @@ struct SyncProgressView: View {
         case .backfillingImages: .teal
         case .fetchingWantlist: .purple
         case .enriching: .orange
+        case .refreshingValues: .green
         case .complete: .green
         case .error: .red
         }

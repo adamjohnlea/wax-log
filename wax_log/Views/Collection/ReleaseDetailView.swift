@@ -118,6 +118,34 @@ struct OverviewTab: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
+            if let value = release.estimatedValue {
+                GroupBox("Value") {
+                    VStack(alignment: .leading, spacing: 4) {
+                        LabeledContent("Estimated Value", value: value.formattedAmount)
+
+                        Text(value.basisDescription)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        if release.numForSale > 0 {
+                            LabeledContent("For Sale", value: "\(release.numForSale) copies")
+                        }
+                        if release.lowestPrice > 0 {
+                            LabeledContent(
+                                "Lowest Listing",
+                                value: release.lowestPrice.formatted(.currency(code: release.priceCurrency ?? "USD"))
+                            )
+                        }
+                        if let updated = release.valueUpdatedAt {
+                            Text("Updated \(updated.formatted(date: .abbreviated, time: .omitted))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
             if release.mediaCondition != nil || release.sleeveCondition != nil {
                 GroupBox("Condition") {
                     VStack(alignment: .leading, spacing: 4) {
@@ -144,6 +172,40 @@ struct OverviewTab: View {
                         }
                     }
                     .font(.callout)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
+            if release.communityHave > 0 || release.communityWant > 0 || release.communityRatingCount > 0 {
+                GroupBox("Discogs Community") {
+                    VStack(alignment: .leading, spacing: 4) {
+                        if release.communityHave > 0 {
+                            LabeledContent("Have", value: "\(release.communityHave)")
+                        }
+                        if release.communityWant > 0 {
+                            LabeledContent("Want", value: "\(release.communityWant)")
+                        }
+                        if release.communityRatingCount > 0 {
+                            LabeledContent(
+                                "Rating",
+                                value: String(format: "%.1f from %d ratings", release.communityRating, release.communityRatingCount)
+                            )
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
+            if let videos = release.decodedVideos, !videos.isEmpty {
+                GroupBox("Videos") {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(Array(videos.enumerated()), id: \.offset) { _, video in
+                            if let url = URL(string: video.uri) {
+                                Link(video.title.isEmpty ? video.uri : video.title, destination: url)
+                                    .font(.callout)
+                            }
+                        }
+                    }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
@@ -181,6 +243,9 @@ struct OverviewTab: View {
                 metadataRow("Barcode", barcode)
             }
             metadataRow("Discogs ID", String(release.discogsId))
+            if release.masterId > 0 {
+                metadataRow("Master ID", String(release.masterId))
+            }
             metadataRow("List", release.isCollection ? "Collection" : "Wantlist")
             if let dateAdded = release.dateAdded {
                 metadataRow("Added", dateAdded.formatted(date: .abbreviated, time: .omitted))

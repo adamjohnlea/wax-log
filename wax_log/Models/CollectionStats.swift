@@ -9,6 +9,10 @@ struct CollectionStats {
     let genres: Int
     /// Average of releases that have a non-zero rating, or `nil` if none are rated.
     let averageRating: Double?
+    /// Sum of estimated values across releases with price data, or `nil` if none have any.
+    let estimatedValue: Double?
+    /// Currency code for `estimatedValue`, taken from the first priced release.
+    let valueCurrency: String?
 
     init(releases: [Release]) {
         total = releases.count
@@ -24,6 +28,10 @@ struct CollectionStats {
         averageRating = rated.isEmpty
             ? nil
             : Double(rated.reduce(0) { $0 + Int($1.rating) }) / Double(rated.count)
+
+        let values = releases.compactMap(\.estimatedValue)
+        estimatedValue = values.isEmpty ? nil : values.reduce(0) { $0 + $1.amount }
+        valueCurrency = values.first?.currency
     }
 
     /// Builds stats for the user's collection (not the wantlist).
@@ -38,6 +46,12 @@ struct CollectionStats {
     var averageRatingText: String {
         guard let averageRating else { return "N/A" }
         return String(format: "%.1f", averageRating)
+    }
+
+    /// Formatted total estimated value for display, e.g. "$1,234" or "N/A".
+    var estimatedValueText: String {
+        guard let estimatedValue else { return "N/A" }
+        return estimatedValue.formatted(.currency(code: valueCurrency ?? "USD").precision(.fractionLength(0)))
     }
 
     /// A natural-language summary for Siri / intent dialog.

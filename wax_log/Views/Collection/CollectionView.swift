@@ -215,7 +215,6 @@ struct CollectionView: View {
         // Capture identity before deletion so we can remove it from Spotlight.
         let discogsId = release.discogsId
         let releaseListType = release.listType ?? "collection"
-
         viewContext.delete(release)
         do {
             try viewContext.save()

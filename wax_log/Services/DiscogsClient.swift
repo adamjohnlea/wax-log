@@ -76,6 +76,16 @@ actor DiscogsClient {
         try await sendRequest(url: url, method: "PUT")
     }
 
+    // MARK: - Price Suggestions
+
+    /// Suggested marketplace prices for a release, keyed by media condition
+    /// (e.g. "Very Good Plus (VG+)"). Requires a Discogs account with seller
+    /// settings enabled; releases without sales history return no suggestions.
+    func getPriceSuggestions(releaseId: Int) async throws -> [String: PriceSuggestion] {
+        let url = baseURL.appendingPathComponent("/marketplace/price_suggestions/\(releaseId)")
+        return try await request(url: url)
+    }
+
     // MARK: - Edit Collection Item
 
     /// Set the rating for a release (1-5, or 0 to remove).
@@ -327,6 +337,7 @@ nonisolated struct ReleaseDetail: Decodable, Sendable {
     let id: Int
     let title: String
     let year: Int
+    let masterId: Int?
     let artists: [BasicInformation.Artist]?
     let labels: [BasicInformation.Label]?
     let formats: [BasicInformation.Format]?
@@ -334,10 +345,32 @@ nonisolated struct ReleaseDetail: Decodable, Sendable {
     let styles: [String]?
     let country: String?
     let notes: String?
+    let lowestPrice: Double?
+    let numForSale: Int?
+    let community: Community?
+    let videos: [Video]?
     let tracklist: [Track]?
     let extraartists: [CreditArtist]?
     let identifiers: [Identifier]?
     let images: [Image]?
+
+    nonisolated struct Community: Decodable, Sendable {
+        let have: Int?
+        let want: Int?
+        let rating: Rating?
+
+        nonisolated struct Rating: Decodable, Sendable {
+            let count: Int?
+            let average: Double?
+        }
+    }
+
+    nonisolated struct Video: Decodable, Sendable {
+        let uri: String
+        let title: String?
+        let description: String?
+        let duration: Int?
+    }
 
     nonisolated struct Track: Decodable, Sendable {
         let position: String?
@@ -370,6 +403,12 @@ nonisolated struct ReleaseDetail: Decodable, Sendable {
         let width: Int
         let height: Int
     }
+}
+
+/// A single suggested price from the price-suggestions endpoint.
+nonisolated struct PriceSuggestion: Decodable, Sendable {
+    let currency: String
+    let value: Double
 }
 
 nonisolated struct SearchResponse: Decodable, Sendable {

@@ -11,7 +11,23 @@ struct CollectionStatsTests {
         #expect(stats.genres == 0)
         #expect(stats.averageRating == nil)
         #expect(stats.averageRatingText == "N/A")
+        #expect(stats.estimatedValue == nil)
+        #expect(stats.estimatedValueText == "N/A")
         #expect(stats.spokenSummary.contains("empty"))
+    }
+
+    @Test func sumsEstimatedValues() {
+        let context = TestStore.makeContext()
+        let priced = TestStore.makeRelease(in: context, discogsId: 1)
+        priced.priceSuggestions = #"{"Very Good Plus (VG+)": {"currency": "USD", "value": 20.0}}"#
+        let lowestOnly = TestStore.makeRelease(in: context, discogsId: 2)
+        lowestOnly.lowestPrice = 5.0
+        let noPriceData = TestStore.makeRelease(in: context, discogsId: 3)
+
+        let stats = CollectionStats(releases: [priced, lowestOnly, noPriceData])
+        #expect(stats.estimatedValue == 25.0)
+        #expect(stats.valueCurrency == "USD")
+        #expect(stats.estimatedValueText != "N/A")
     }
 
     @Test func countsUniqueArtistsAndGenres() {

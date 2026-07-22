@@ -21,6 +21,47 @@ extension Release {
         let value: String
     }
 
+    struct VideoInfo {
+        let uri: String
+        let title: String
+    }
+
+    struct SuggestedPrice {
+        let currency: String
+        let value: Double
+    }
+
+    /// An estimated market value for this copy, with the basis it was derived from.
+    struct EstimatedValue {
+        enum Basis {
+            /// Suggested price for the release's own media condition.
+            case condition(String)
+            /// No usable media condition — assumed VG+ by collector convention.
+            case assumedVGPlus
+            /// No sales history data — cheapest copy currently listed, any condition.
+            case lowestListing
+        }
+
+        let amount: Double
+        let currency: String
+        let basis: Basis
+
+        var formattedAmount: String {
+            amount.formatted(.currency(code: currency))
+        }
+
+        var basisDescription: String {
+            switch basis {
+            case .condition(let condition): "Based on media condition: \(condition)"
+            case .assumedVGPlus: "Estimate assumes VG+ — no condition set"
+            case .lowestListing: "Lowest listing on Discogs — no sales history data"
+            }
+        }
+    }
+
+    /// The condition grade assumed when a release has no media condition set.
+    static let assumedConditionKey = "Very Good Plus (VG+)"
+
     struct ImageInfo {
         let type: String
         let uri: String
@@ -94,6 +135,53 @@ extension Release {
                 height: dict["height"] as? Int ?? 0
             )
         }
+    }
+
+    var decodedVideos: [VideoInfo]? {
+        guard let videos, let data = videos.data(using: .utf8),
+              let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            return nil
+        }
+        return array.compactMap { dict in
+            guard let uri = dict["uri"] as? String else { return nil }
+            return VideoInfo(
+                uri: uri,
+                title: dict["title"] as? String ?? ""
+            )
+        }
+    }
+
+    /// Suggested prices keyed by media condition, e.g. "Very Good Plus (VG+)".
+    var decodedPriceSuggestions: [String: SuggestedPrice]? {
+        guard let priceSuggestions, let data = priceSuggestions.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: [String: Any]] else {
+            return nil
+        }
+        var suggestions: [String: SuggestedPrice] = [:]
+        for (condition, entry) in object {
+            guard let value = entry["value"] as? Double,
+                  let currency = entry["currency"] as? String else { continue }
+            suggestions[condition] = SuggestedPrice(currency: currency, value: value)
+        }
+        return suggestions
+    }
+
+    /// Estimated value for this copy: the suggested price for its media condition,
+    /// falling back to VG+ when ungraded, then to the lowest current listing when
+    /// the release has no sales history. `nil` when no price data is available.
+    var estimatedValue: EstimatedValue? {
+        if let suggestions = decodedPriceSuggestions, !suggestions.isEmpty {
+            if let condition = mediaCondition, let match = suggestions[condition] {
+                return EstimatedValue(amount: match.value, currency: match.currency, basis: .condition(condition))
+            }
+            if let assumed = suggestions[Self.assumedConditionKey] {
+                return EstimatedValue(amount: assumed.value, currency: assumed.currency, basis: .assumedVGPlus)
+            }
+        }
+        if lowestPrice > 0 {
+            return EstimatedValue(amount: lowestPrice, currency: priceCurrency ?? "USD", basis: .lowestListing)
+        }
+        return nil
     }
 
     /// All images: primary (from imageURL) + additional images

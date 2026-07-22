@@ -231,6 +231,7 @@ final class SyncService {
 
                 do {
                     let detail = try await discogsClient.getReleaseDetail(releaseId: discogsId)
+                    let suggestions = try await fetchPriceSuggestions(releaseId: discogsId)
 
                     await context.perform {
                         // Tracklist
@@ -305,6 +306,9 @@ final class SyncService {
                             }
                         }
 
+                        self.applyMarketData(from: detail, to: release)
+                        self.applyPriceSuggestions(suggestions, to: release)
+
                         release.enriched = true
 
                         try? context.save()
@@ -325,6 +329,34 @@ final class SyncService {
         isSyncing = false
     }
 
+    /// Clear the enriched flag on every release and run a full enrichment pass,
+    /// re-downloading details, community stats, videos, and prices for the
+    /// entire library. Intended for backfilling data added after releases were
+    /// first enriched.
+    func reenrichAllReleases() async {
+        guard !isSyncing else { return }
+
+        let context = persistenceController.container.viewContext
+        let request = NSFetchRequest<Release>(entityName: "Release")
+        request.predicate = NSPredicate(format: "enriched == YES")
+
+        do {
+            let enriched = try context.fetch(request)
+            for release in enriched {
+                release.enriched = false
+            }
+            if context.hasChanges {
+                try context.save()
+            }
+        } catch {
+            lastError = error.localizedDescription
+            syncProgress = SyncProgress(phase: .error, current: 0, total: 0, message: error.localizedDescription)
+            return
+        }
+
+        await enrichAllReleases()
+    }
+
     /// Enrich a single release with full Discogs detail. Throws so callers can surface failures.
     func enrichSingleRelease(_ objectID: NSManagedObjectID) async throws {
         let context = persistenceController.container.newBackgroundContext()
@@ -336,6 +368,7 @@ final class SyncService {
         let discogsId = await context.perform { Int(release.discogsId) }
 
         let detail = try await discogsClient.getReleaseDetail(releaseId: discogsId)
+        let suggestions = try await fetchPriceSuggestions(releaseId: discogsId)
 
         try await context.perform {
                 if let tracks = detail.tracklist {
@@ -403,9 +436,135 @@ final class SyncService {
                     }
                 }
 
+                self.applyMarketData(from: detail, to: release)
+                self.applyPriceSuggestions(suggestions, to: release)
+
                 release.enriched = true
                 try context.save()
             }
+    }
+
+    // MARK: - Market Data
+
+    /// Fetches suggested prices for a release, treating "not found" as a release
+    /// with no sales-history data rather than an error.
+    private func fetchPriceSuggestions(releaseId: Int) async throws -> [String: PriceSuggestion] {
+        do {
+            return try await discogsClient.getPriceSuggestions(releaseId: releaseId)
+        } catch DiscogsError.notFound {
+            return [:]
+        }
+    }
+
+    /// Applies market, community, and video data from a release detail response.
+    /// Must be called within the context's `perform` block.
+    private func applyMarketData(from detail: ReleaseDetail, to release: Release) {
+        if let masterId = detail.masterId {
+            release.masterId = Int64(masterId)
+        }
+        if let lowestPrice = detail.lowestPrice {
+            release.lowestPrice = lowestPrice
+        }
+        if let numForSale = detail.numForSale {
+            release.numForSale = Int32(numForSale)
+        }
+        if let community = detail.community {
+            release.communityHave = Int32(community.have ?? 0)
+            release.communityWant = Int32(community.want ?? 0)
+            release.communityRating = community.rating?.average ?? 0
+            release.communityRatingCount = Int32(community.rating?.count ?? 0)
+        }
+        if let videos = detail.videos, !videos.isEmpty {
+            let videoData: [[String: String]] = videos.map { video in
+                ["uri": video.uri, "title": video.title ?? ""]
+            }
+            if let json = try? JSONSerialization.data(withJSONObject: videoData),
+               let jsonString = String(data: json, encoding: .utf8) {
+                release.videos = jsonString
+            }
+        }
+    }
+
+    /// Stores suggested prices as JSON and stamps the value refresh date.
+    /// Must be called within the context's `perform` block.
+    private func applyPriceSuggestions(_ suggestions: [String: PriceSuggestion], to release: Release) {
+        if suggestions.isEmpty {
+            release.priceSuggestions = nil
+        } else {
+            let data: [String: [String: Any]] = suggestions.mapValues {
+                ["currency": $0.currency, "value": $0.value]
+            }
+            if let json = try? JSONSerialization.data(withJSONObject: data),
+               let jsonString = String(data: json, encoding: .utf8) {
+                release.priceSuggestions = jsonString
+            }
+            release.priceCurrency = suggestions.values.first?.currency
+        }
+        release.valueUpdatedAt = Date()
+    }
+
+    /// Re-fetch price data for all enriched releases. Releases with no sales
+    /// history fall back to refreshing the lowest current listing price.
+    func refreshAllValues() async {
+        guard !isSyncing else { return }
+        isSyncing = true
+        lastError = nil
+
+        do {
+            let context = persistenceController.container.newBackgroundContext()
+            context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+
+            let request = NSFetchRequest<Release>(entityName: "Release")
+            request.predicate = NSPredicate(format: "enriched == YES")
+            request.sortDescriptors = [NSSortDescriptor(keyPath: \Release.valueUpdatedAt, ascending: true)]
+
+            let releases = try await context.perform { try context.fetch(request) }
+            let total = releases.count
+
+            guard total > 0 else {
+                syncProgress = SyncProgress(phase: .complete, current: 0, total: 0, message: "No enriched releases to update. Run Enrich All first.")
+                isSyncing = false
+                return
+            }
+
+            syncProgress = SyncProgress(phase: .refreshingValues, current: 0, total: total, message: "Refreshing values...")
+
+            for (index, release) in releases.enumerated() {
+                nonisolated(unsafe) let release = release
+                let discogsId = await context.perform { Int(release.discogsId) }
+
+                do {
+                    let suggestions = try await fetchPriceSuggestions(releaseId: discogsId)
+
+                    // No sales history: refresh the lowest-listing fallback instead.
+                    let detail: ReleaseDetail?
+                    if suggestions.isEmpty {
+                        detail = try await discogsClient.getReleaseDetail(releaseId: discogsId)
+                    } else {
+                        detail = nil
+                    }
+
+                    await context.perform {
+                        if let detail {
+                            self.applyMarketData(from: detail, to: release)
+                        }
+                        self.applyPriceSuggestions(suggestions, to: release)
+                        try? context.save()
+                    }
+                } catch {
+                    // Skip individual failures, continue with next release
+                }
+
+                syncProgress = SyncProgress(phase: .refreshingValues, current: index + 1, total: total, message: "Refreshing values... \(index + 1)/\(total)")
+            }
+
+            syncProgress = SyncProgress(phase: .complete, current: total, total: total, message: "Value refresh complete!")
+        } catch {
+            lastError = error.localizedDescription
+            syncProgress = SyncProgress(phase: .error, current: 0, total: 0, message: error.localizedDescription)
+        }
+
+        isSyncing = false
     }
 
     // MARK: - Image Backfill
@@ -655,6 +814,7 @@ struct SyncProgress {
         case fetchingCollection
         case fetchingWantlist
         case enriching
+        case refreshingValues
         case backfillingImages
         case complete
         case error

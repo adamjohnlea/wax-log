@@ -44,6 +44,7 @@ struct StatisticsView: View {
             StatCard(title: "Artists", value: "\(stats.artists)", icon: "person.2")
             StatCard(title: "Genres", value: "\(stats.genres)", icon: "guitars")
             StatCard(title: "Avg Rating", value: stats.averageRatingText, icon: "star")
+            StatCard(title: "Est. Value", value: stats.estimatedValueText, icon: "dollarsign.circle")
         }
     }
 }
