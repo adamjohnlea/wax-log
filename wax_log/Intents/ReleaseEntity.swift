@@ -14,8 +14,8 @@ import UniformTypeIdentifiers
 /// only wrapped members are visible to Shortcuts' "Find Records" action. Plain
 /// members are used solely to build `displayRepresentation` and `attributeSet`.
 struct ReleaseEntity: AppEntity, IndexedEntity {
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Record"
-    static var defaultQuery = ReleaseEntityQuery()
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Record"
+    static let defaultQuery = ReleaseEntityQuery()
 
     let id: String
     let discogsId: Int64
@@ -196,7 +196,10 @@ struct ReleaseFilter: Sendable {
 /// - `entities(matching:mode:sortedBy:limit:)` (`EntityPropertyQuery`) powers
 ///   Shortcuts' "Find Records" action, where the system parses the user's
 ///   filter into comparators that this query executes as a fetch predicate.
-struct ReleaseEntityQuery: EntityStringQuery, EntityPropertyQuery {
+/// - `reindexEntities`/`reindexAllEntities` (`IndexedEntityQuery`) let the
+///   system ask for Spotlight content to be donated again after it loses or
+///   invalidates the index.
+struct ReleaseEntityQuery: EntityStringQuery, EntityPropertyQuery, IndexedEntityQuery {
     // Queries run on the main context: result sets are small (capped below) and
     // these run only when Siri/Spotlight/Shortcuts ask, never on a hot path.
     // Async requirements permit a main-actor implementation.
@@ -206,7 +209,13 @@ struct ReleaseEntityQuery: EntityStringQuery, EntityPropertyQuery {
     /// Default cap when Shortcuts doesn't supply an explicit limit.
     private static let defaultFetchLimit = 50
 
-    static var properties = QueryProperties {
+    // `nonisolated(unsafe)` is forced here, not chosen: `QueryProperties` and
+    // `SortingOptions` aren't `Sendable`, so a stored static of either is a
+    // Swift 6 error — but the App Intents build-time validator rejects the
+    // computed-property workaround ("expected 'Property' but got
+    // 'QueryProperties'"), requiring this exact literal shape. Both are `let`,
+    // built once from literals and never mutated, so there's nothing to race on.
+    nonisolated(unsafe) static let properties = QueryProperties {
         Property(\.$title) {
             EqualToComparator { ReleaseFilter(key: "title", test: .equalToText($0)) }
             ContainsComparator { ReleaseFilter(key: "title", test: .containsText($0)) }
@@ -251,7 +260,7 @@ struct ReleaseEntityQuery: EntityStringQuery, EntityPropertyQuery {
         }
     }
 
-    static var sortingOptions = SortingOptions {
+    nonisolated(unsafe) static let sortingOptions = SortingOptions {
         SortableBy(\.$title)
         SortableBy(\.$displayArtist)
         SortableBy(\.$year)
@@ -260,12 +269,19 @@ struct ReleaseEntityQuery: EntityStringQuery, EntityPropertyQuery {
 
     /// Maps a sortable entity property onto its Core Data attribute name.
     /// `displayArtist` is computed, so it sorts by the stored `artist` column.
-    private static let sortKeys: [PartialKeyPath<ReleaseEntity>: String] = [
-        \ReleaseEntity.$title: "title",
-        \ReleaseEntity.$displayArtist: "artist",
-        \ReleaseEntity.$year: "year",
-        \ReleaseEntity.$rating: "rating"
-    ]
+    ///
+    /// A function rather than a static dictionary: a stored
+    /// `[PartialKeyPath<ReleaseEntity>: String]` is global mutable state that
+    /// isn't `Sendable`, which Swift 6 rejects.
+    private static func sortKey(for keyPath: PartialKeyPath<ReleaseEntity>) -> String? {
+        switch keyPath {
+        case \ReleaseEntity.$title: "title"
+        case \ReleaseEntity.$displayArtist: "artist"
+        case \ReleaseEntity.$year: "year"
+        case \ReleaseEntity.$rating: "rating"
+        default: nil
+        }
+    }
 
     @MainActor
     func entities(for identifiers: [ReleaseEntity.ID]) async throws -> [ReleaseEntity] {
@@ -297,36 +313,72 @@ struct ReleaseEntityQuery: EntityStringQuery, EntityPropertyQuery {
     /// Executes a Shortcuts "Find Records" filter. The system only parses the
     /// user's query into `comparators`, `mode`, `sortedBy`, and `limit` — this
     /// method has to honour all four, so they're pushed down into the fetch.
-    @MainActor
+    ///
+    /// Stays nonisolated because `EntityQuerySort` isn't `Sendable` and so can't
+    /// cross into a main-actor implementation; the sort is reduced to plain
+    /// key/direction pairs here and rebuilt on the main actor.
     func entities(
         matching comparators: [ReleaseFilter],
         mode: ComparatorMode,
         sortedBy: [Sort<ReleaseEntity>],
         limit: Int?
     ) async throws -> [ReleaseEntity] {
+        let sortKeys: [(key: String, ascending: Bool)] = sortedBy.compactMap { sort in
+            guard let key = Self.sortKey(for: sort.by) else { return nil }
+            return (key, sort.order == .ascending)
+        }
+        return await fetch(
+            comparators: comparators,
+            combineWithAnd: mode == .and,
+            sortKeys: sortKeys,
+            limit: limit ?? Self.defaultFetchLimit
+        )
+    }
+
+    @MainActor
+    private func fetch(
+        comparators: [ReleaseFilter],
+        combineWithAnd: Bool,
+        sortKeys: [(key: String, ascending: Bool)],
+        limit: Int
+    ) -> [ReleaseEntity] {
         let context = PersistenceController.shared.container.viewContext
         let request = NSFetchRequest<Release>(entityName: "Release")
 
         if !comparators.isEmpty {
             let predicates = comparators.map(\.predicate)
-            request.predicate = mode == .and
+            request.predicate = combineWithAnd
                 ? NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
                 : NSCompoundPredicate(orPredicateWithSubpredicates: predicates)
         }
 
-        let descriptors = sortedBy.compactMap { sort -> NSSortDescriptor? in
-            guard let key = Self.sortKeys[sort.by] else { return nil }
-            return NSSortDescriptor(key: key, ascending: sort.order == .ascending)
-        }
         // Fall back to newest-first so results stay deterministic when the user
         // didn't choose a sort order.
-        request.sortDescriptors = descriptors.isEmpty
+        request.sortDescriptors = sortKeys.isEmpty
             ? [NSSortDescriptor(keyPath: \Release.dateAdded, ascending: false)]
-            : descriptors
+            : sortKeys.map { NSSortDescriptor(key: $0.key, ascending: $0.ascending) }
 
-        request.fetchLimit = limit ?? Self.defaultFetchLimit
+        request.fetchLimit = limit
         let releases = (try? context.fetch(request)) ?? []
         return releases.map(ReleaseEntity.init(release:))
+    }
+
+    // MARK: - System-driven Spotlight reindexing
+
+    /// Called when the system wants specific records donated again.
+    func reindexEntities(
+        for identifiers: [ReleaseEntity.ID],
+        indexDescription: CSSearchableIndexDescription
+    ) async throws {
+        let entities = await SpotlightIndexService.entities(identifiedBy: identifiers)
+        try await SpotlightIndexService.donate(entities)
+    }
+
+    /// Called when the system has lost or invalidated the index and needs the
+    /// whole collection rebuilt. Without this the app would only reseed on a
+    /// fresh install, leaving the collection unsearchable until the next sync.
+    func reindexAllEntities(indexDescription: CSSearchableIndexDescription) async throws {
+        try await SpotlightIndexService.replaceAll()
     }
 
     @MainActor

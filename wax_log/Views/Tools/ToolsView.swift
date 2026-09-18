@@ -414,7 +414,7 @@ struct ToolsView: View {
 
         // Clear image cache and the Spotlight index
         Task {
-            try? await CSSearchableIndex(name: AppModel.spotlightIndexName).deleteAllSearchableItems()
+            try? await SpotlightIndexService.deleteEverything()
             do {
                 try await ImageCacheService.shared.clearCache()
                 updateCacheSize()
