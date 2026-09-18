@@ -5,11 +5,11 @@ import MusicKit
 /// navigates to it. Backed by `AppModel`, which is registered with
 /// `AppDependencyManager` in `wax_logApp`.
 struct SurpriseMeIntent: AppIntent {
-    static var title: LocalizedStringResource = "Surprise Me"
-    static var description = IntentDescription("Pick a random record from your collection and open it.")
+    static let title: LocalizedStringResource = "Surprise Me"
+    static let description = IntentDescription("Pick a random record from your collection and open it.")
 
-    /// Bring the app to the foreground so the chosen release is visible.
-    static var openAppWhenRun = true
+    /// Runs in the app so the chosen release is on screen when the dialog lands.
+    static var supportedModes: IntentModes { .foreground }
 
     @Dependency private var appModel: AppModel
 
@@ -25,7 +25,10 @@ struct SurpriseMeIntent: AppIntent {
 /// Opens a specific record in the app. Used both as a Shortcuts action and by
 /// Spotlight to open a record from a search result.
 struct OpenReleaseIntent: OpenIntent {
-    static var title: LocalizedStringResource = "Open Record"
+    static let title: LocalizedStringResource = "Open Record"
+
+    /// Navigates the app's UI, so it has to run in the app rather than headless.
+    static var supportedModes: IntentModes { .foreground }
 
     @Parameter(title: "Record")
     var target: ReleaseEntity
@@ -42,8 +45,11 @@ struct OpenReleaseIntent: OpenIntent {
 /// Searches the collection and wantlist using the in-app query language
 /// (e.g. `genre:Jazz year:1960..1969`, or a plain artist/title).
 struct FindReleasesIntent: AppIntent {
-    static var title: LocalizedStringResource = "Find Records"
-    static var description = IntentDescription("Search your collection and wantlist.")
+    static let title: LocalizedStringResource = "Find Records"
+    static let description = IntentDescription("Search your collection and wantlist.")
+
+    /// A pure query — no UI, so it never needs to bring the app forward.
+    static var supportedModes: IntentModes { .background }
 
     @Parameter(title: "Search", description: #"An artist or title, or a query like "genre:Jazz year:1960..1969""#)
     var query: String
@@ -60,8 +66,11 @@ struct FindReleasesIntent: AppIntent {
 
 /// Searches Discogs for a record and adds the top match to the wantlist.
 struct AddToWantlistIntent: AppIntent {
-    static var title: LocalizedStringResource = "Add to Wantlist"
-    static var description = IntentDescription("Search Discogs and add the top match to your wantlist.")
+    static let title: LocalizedStringResource = "Add to Wantlist"
+    static let description = IntentDescription("Search Discogs and add the top match to your wantlist.")
+
+    /// Network fetch plus a local write; nothing to show, so it stays headless.
+    static var supportedModes: IntentModes { .background }
 
     @Parameter(title: "Record", description: "An artist and/or album title to search for")
     var query: String
@@ -79,8 +88,13 @@ struct AddToWantlistIntent: AppIntent {
 
 /// Matches a record to Apple Music and plays the album.
 struct PlayRecordIntent: AppIntent {
-    static var title: LocalizedStringResource = "Play Record"
-    static var description = IntentDescription("Find a record on Apple Music and play the album.")
+    static let title: LocalizedStringResource = "Play Record"
+    static let description = IntentDescription("Find a record on Apple Music and play the album.")
+
+    /// Playback needs no UI once access is granted, but the first run has to ask
+    /// for Apple Music permission and that prompt can't appear from a headless
+    /// run. So it starts in the background and escalates only when it must.
+    static var supportedModes: IntentModes { [.background, .foreground(.dynamic)] }
 
     @Parameter(title: "Record")
     var target: ReleaseEntity
@@ -89,6 +103,13 @@ struct PlayRecordIntent: AppIntent {
     func perform() async throws -> some IntentResult & ProvidesDialog {
         // Ensure Apple Music access.
         if await !AppleMusicService.shared.isAuthorized {
+            // Some surfaces (voice-only, certain widgets) can't bring the app
+            // forward at all; ask the system to prompt instead of failing silently.
+            guard systemContext.currentMode.canContinueInForeground else {
+                throw needsToContinueInForegroundError("Open Vinyl Crate to connect Apple Music")
+            }
+            try await continueInForeground("Connect Apple Music?", alwaysConfirm: false)
+
             guard await AppleMusicService.shared.requestAuthorization() else {
                 return .result(dialog: "Open Vinyl Crate and connect Apple Music, then try again.")
             }
@@ -113,8 +134,11 @@ struct PlayRecordIntent: AppIntent {
 
 /// Reports a summary of the collection (counts and average rating).
 struct CollectionStatsIntent: AppIntent {
-    static var title: LocalizedStringResource = "Collection Stats"
-    static var description = IntentDescription("Get a summary of your record collection.")
+    static let title: LocalizedStringResource = "Collection Stats"
+    static let description = IntentDescription("Get a summary of your record collection.")
+
+    /// Reads and reports numbers; nothing to show on screen.
+    static var supportedModes: IntentModes { .background }
 
     @MainActor
     func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog {
