@@ -336,15 +336,16 @@ struct TracksTab: View {
     }
 
     private func togglePlayPause() {
-        let player = ApplicationMusicPlayer.shared
         if isPlaying {
-            player.pause()
+            ApplicationMusicPlayer.shared.pause()
             isPlaying = false
         } else {
             playbackError = nil
             Task {
                 do {
-                    try await player.play()
+                    // Resolved inside the task: the player isn't Sendable, so
+                    // capturing it from out here would send it across isolation.
+                    try await ApplicationMusicPlayer.shared.play()
                     isPlaying = true
                 } catch {
                     playbackError = error.localizedDescription

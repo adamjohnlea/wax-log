@@ -27,7 +27,9 @@ struct PersistenceController {
         }
 
         container.viewContext.automaticallyMergesChangesFromParent = true
-        container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+        // The typed NSMergePolicy value rather than the legacy global constant,
+        // which is a mutable global and so isn't concurrency-safe.
+        container.viewContext.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
     }
 
     static var preview: PersistenceController = {

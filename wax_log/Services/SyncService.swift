@@ -100,7 +100,7 @@ final class SyncService {
 
     private func processCollectionReleases(_ releases: [CollectionRelease], processedSoFar: inout Int, total: Int) async throws {
         let context = persistenceController.container.newBackgroundContext()
-        context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+        context.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
 
         try await context.perform {
             for item in releases {
@@ -167,7 +167,7 @@ final class SyncService {
 
     private func processWantlistReleases(_ releases: [WantlistRelease], processedSoFar: inout Int, total: Int) async throws {
         let context = persistenceController.container.newBackgroundContext()
-        context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+        context.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
 
         try await context.perform {
             for item in releases {
@@ -207,7 +207,7 @@ final class SyncService {
 
         do {
             let context = persistenceController.container.newBackgroundContext()
-            context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+            context.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
 
             // Fetch all unenriched releases
             let request = NSFetchRequest<Release>(entityName: "Release")
@@ -360,7 +360,7 @@ final class SyncService {
     /// Enrich a single release with full Discogs detail. Throws so callers can surface failures.
     func enrichSingleRelease(_ objectID: NSManagedObjectID) async throws {
         let context = persistenceController.container.newBackgroundContext()
-        context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+        context.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
 
         guard let fetchedRelease = try await context.perform({ try context.existingObject(with: objectID) as? Release }) else { return }
         nonisolated(unsafe) let release = fetchedRelease
@@ -458,7 +458,9 @@ final class SyncService {
 
     /// Applies market, community, and video data from a release detail response.
     /// Must be called within the context's `perform` block.
-    private func applyMarketData(from detail: ReleaseDetail, to release: Release) {
+    /// `nonisolated` like `fetchOrCreateRelease`: called inside a
+    /// `context.perform` block, so it runs on that context's queue.
+    nonisolated private func applyMarketData(from detail: ReleaseDetail, to release: Release) {
         if let masterId = detail.masterId {
             release.masterId = Int64(masterId)
         }
@@ -487,7 +489,7 @@ final class SyncService {
 
     /// Stores suggested prices as JSON and stamps the value refresh date.
     /// Must be called within the context's `perform` block.
-    private func applyPriceSuggestions(_ suggestions: [String: PriceSuggestion], to release: Release) {
+    nonisolated private func applyPriceSuggestions(_ suggestions: [String: PriceSuggestion], to release: Release) {
         if suggestions.isEmpty {
             release.priceSuggestions = nil
         } else {
@@ -512,7 +514,7 @@ final class SyncService {
 
         do {
             let context = persistenceController.container.newBackgroundContext()
-            context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+            context.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
 
             let request = NSFetchRequest<Release>(entityName: "Release")
             request.predicate = NSPredicate(format: "enriched == YES")
@@ -749,7 +751,7 @@ final class SyncService {
         }
 
         let context = persistenceController.container.newBackgroundContext()
-        context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+        context.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
 
         try await context.perform {
             // Skip if a local entry already exists for this list.
@@ -811,7 +813,10 @@ final class SyncService {
 
     // MARK: - Helpers
 
-    private func fetchOrCreateRelease(discogsId: Int64, listType: String, in context: NSManagedObjectContext) -> Release {
+    /// `nonisolated` because it runs inside the caller's `context.perform`
+    /// block, so it belongs to that context's queue rather than the main actor,
+    /// and the `Release` it returns never leaves that block.
+    nonisolated private func fetchOrCreateRelease(discogsId: Int64, listType: String, in context: NSManagedObjectContext) -> Release {
         let request = NSFetchRequest<Release>(entityName: "Release")
         request.predicate = NSPredicate(format: "discogsId == %lld AND listType == %@", discogsId, listType)
         request.fetchLimit = 1
@@ -828,7 +833,7 @@ final class SyncService {
         return release
     }
 
-    private func parseDiscogsDate(_ dateString: String) -> Date? {
+    nonisolated private func parseDiscogsDate(_ dateString: String) -> Date? {
         // Discogs format: "2022-05-01T12:29:03-07:00"
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]

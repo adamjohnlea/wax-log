@@ -1,7 +1,11 @@
 import Foundation
 import CoreData
 
-extension Release {
+/// `nonisolated` because these are pure transforms of the object's own stored
+/// attributes, read from background contexts as well as the main one (Spotlight
+/// indexing builds entities on a background context). Core Data safety comes
+/// from the owning context's queue, not from main-actor isolation.
+nonisolated extension Release {
     var isCollection: Bool { listType == "collection" }
     var isWantlist: Bool { listType == "wantlist" }
 
