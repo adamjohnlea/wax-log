@@ -11,9 +11,12 @@ A native macOS app for managing your vinyl (and other format) record collection,
 - **Discogs Sync** — Import your full collection and wantlist from Discogs, with incremental refresh
 - **Two-Way Sync** — Push ratings, media/sleeve conditions, and personal notes back to Discogs; removing a release in the app also removes it from your Discogs collection or wantlist
 - **Enrichment** — Fetch detailed metadata including tracklists, credits, identifiers, country, master release ID, and additional artwork
-- **List & Grid Views** — Browse as a detailed list or an artwork grid, with per-list sort orders (date added, year, artist, title, rating)
+- **List & Grid Views** — Browse as a detailed list or an artwork grid, with per-list sort orders (date added, year, artist, title, rating, custom)
+- **Custom Order** — Pick **Custom Order** from the sort menu, then drag records into any order you like in list or grid view. Saved per list and synced via iCloud. Dragging is disabled while a search filter is active, since a filtered subset has no defined position in the full list.
+- **Swipe to Remove** — Swipe a row in list view to remove a record, alongside the context menu
 - **Smart Collections** — Save search queries as dynamic collections with live counts
-- **Advanced Search** — Query syntax with field prefixes, quoted phrases, year/rating ranges
+- **Advanced Search** — Query syntax with field prefixes, quoted phrases, year/rating ranges. Open it from **＋ New Smart Collection** in the sidebar.
+- **Plain-Language Search** — In Advanced Search, describe what you're after ("jazz records from the 60s I rated highly") and the on-device model fills in the search fields for you to review before running
 - **Discogs Search** — Search the Discogs database and add releases to your collection or wantlist
 
 ![My Collection in list view](docs/screenshots/collection-list.png)
@@ -39,7 +42,8 @@ A native macOS app for managing your vinyl (and other format) record collection,
 ### System Integration
 
 - **Siri & Shortcuts** — Six App Intents: Surprise Me, Open Record, Find Records, Add to Wantlist, Play Record, and Collection Stats
-- **Spotlight** — Every release is indexed; search your collection from anywhere on your Mac
+- **Shortcuts Filtering** — Build "Find Records where…" actions filtering on artist, title, year, genre, label, format, country, and rating, with sorting and limits
+- **Spotlight** — Every release is indexed; search your collection from anywhere on your Mac, and the index rebuilds itself if the system ever invalidates it
 - **iCloud Sync** — Core Data + CloudKit keeps your library in sync across all your Macs
 - **VoiceOver** — Rows, cards, ratings, and stats are fully labeled for screen readers
 
@@ -66,11 +70,12 @@ Values are estimates based on media condition only (sleeve condition isn't facto
 
 ## Requirements
 
-- macOS 15.0+
-- Xcode 16+
+- macOS 27.0+
+- Xcode 27+
 - A [Discogs](https://www.discogs.com) account with a [personal access token](https://www.discogs.com/settings/developers)
 - Discogs seller settings enabled (optional, for condition-graded value estimates)
 - Apple Music subscription (optional, for playback features)
+- Apple Intelligence enabled (optional, for plain-language search)
 
 ## Setup
 
@@ -91,6 +96,7 @@ Already had your library enriched before values existed? Run **Tools → Re-enri
 
 - **SwiftUI** with `NavigationSplitView` (sidebar / content / detail)
 - **Core Data** with `NSPersistentCloudKitContainer` for local-first storage + iCloud sync
+- **Swift 6** language mode with full data-race checking
 - **Swift Concurrency** — actors for thread-safe networking and image caching
 - **App Intents** for Siri, Shortcuts, and Spotlight integration
 - **MusicKit** for Apple Music catalog search and playback
@@ -102,7 +108,7 @@ Already had your library enriched before values existed? Run **Tools → Re-enri
 ```
 wax_log/
 ├── Intents/
-│   ├── ReleaseEntity.swift       # App Intents entity for releases
+│   ├── ReleaseEntity.swift       # App Intents entity + Shortcuts property query
 │   └── VinylCrateIntents.swift   # Siri / Shortcuts intents
 ├── Models/
 │   ├── CollectionStats.swift     # Shared stats (dashboard + intents)
@@ -114,7 +120,9 @@ wax_log/
 │   ├── DiscogsClient.swift       # Discogs REST client (actor)
 │   ├── ImageCacheService.swift
 │   ├── KeychainService.swift
+│   ├── NaturalLanguageSearchService.swift  # On-device plain-language search
 │   ├── SearchService.swift
+│   ├── SpotlightIndexService.swift         # Spotlight index fetch & donate
 │   └── SyncService.swift         # Sync, enrichment, values, removal
 ├── Views/
 │   ├── Collection/          # List, grid, cards, detail, randomizer
@@ -139,7 +147,7 @@ Run the unit tests in Xcode with **⌘U**, or from the command line:
 xcodebuild test -project wax_log.xcodeproj -scheme wax_log | xcbeautify
 ```
 
-The suite covers value-basis selection, stats aggregation, search query parsing, display formatting, and App Intents entity mapping — all against an in-memory Core Data store.
+The suite covers value-basis selection, stats aggregation, search query parsing, display formatting, App Intents entity mapping, Shortcuts filter predicates, and the grounding pass that filters plain-language search output — all against an in-memory Core Data store.
 
 ## Discogs API Usage
 
