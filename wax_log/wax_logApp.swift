@@ -66,23 +66,16 @@ struct AppCommands: Commands {
             Divider()
 
             Button("List View") {
-                NotificationCenter.default.post(name: .switchToListView, object: nil)
+                appModel.setViewMode(.list)
             }
             .keyboardShortcut("1", modifiers: [.command, .control])
+            .disabled(!appModel.canSwitchViewMode)
 
             Button("Grid View") {
-                NotificationCenter.default.post(name: .switchToGridView, object: nil)
+                appModel.setViewMode(.grid)
             }
             .keyboardShortcut("2", modifiers: [.command, .control])
+            .disabled(!appModel.canSwitchViewMode)
         }
     }
-}
-
-// MARK: - Notification Names
-
-extension Notification.Name {
-    // View-mode toggles remain notification-based because they target a single
-    // CollectionView's local state, not app-wide navigation.
-    static let switchToListView = Notification.Name("switchToListView")
-    static let switchToGridView = Notification.Name("switchToGridView")
 }

@@ -1,7 +1,5 @@
 import SwiftUI
 import CoreData
-import CoreSpotlight
-import AppIntents
 
 /// App-wide navigation and action state.
 ///
@@ -26,10 +24,6 @@ final class AppModel {
 
     private let persistenceController: PersistenceController
     private let savedSectionKey = "selectedSection"
-
-    /// Named Spotlight index for the collection (a named index is recommended
-    /// over the default for app content).
-    static let spotlightIndexName = "VinylCrateReleases"
 
     /// UserDefaults flag tracking whether the Spotlight index has been seeded.
     static let spotlightSeededKey = "spotlightSeeded"
@@ -62,6 +56,32 @@ final class AppModel {
         selectedSection = section
         selectedRelease = nil
         UserDefaults.standard.set(section?.rawValue ?? "collection", forKey: savedSectionKey)
+    }
+
+    // MARK: - View mode
+
+    /// The release list the View menu commands act on, or `nil` when the
+    /// selected section isn't one (Statistics, Tools, a Smart Collection).
+    private var activeListType: String? {
+        switch selectedSection {
+        case .collection: "collection"
+        case .wantlist: "wantlist"
+        default: nil
+        }
+    }
+
+    /// Whether switching between list and grid applies to what's on screen.
+    /// Drives menu-item enablement so the commands aren't offered as no-ops.
+    var canSwitchViewMode: Bool { activeListType != nil }
+
+    /// Switches the visible release list between list and grid.
+    ///
+    /// Writes the same `UserDefaults` key `CollectionView` reads through
+    /// `@AppStorage`, so the menu command, its keyboard shortcut, and the
+    /// toolbar picker all drive one piece of state.
+    func setViewMode(_ mode: ViewMode) {
+        guard let activeListType else { return }
+        UserDefaults.standard.set(mode.rawValue, forKey: "viewMode_\(activeListType)")
     }
 
     // MARK: - Sync actions (menu commands + intents)
@@ -114,7 +134,8 @@ final class AppModel {
     /// Seeds the Spotlight index once per install, for data synced before
     /// indexing existed. After that, incremental add/remove plus the full
     /// reconcile on each sync keep it current — so we don't re-index the whole
-    /// collection on every launch.
+    /// collection on every launch. If the index is ever lost, the system asks
+    /// `ReleaseEntityQuery` to rebuild it rather than waiting for this flag.
     func indexCollectionIfNeeded() async {
         guard !UserDefaults.standard.bool(forKey: Self.spotlightSeededKey) else { return }
         await indexCollection()
@@ -124,18 +145,8 @@ final class AppModel {
     /// so records removed elsewhere don't linger as stale results. Run after a
     /// sync, where the whole dataset may have changed. Best-effort.
     func indexCollection() async {
-        let context = persistenceController.container.newBackgroundContext()
-        let entities: [ReleaseEntity] = await context.perform {
-            let request = NSFetchRequest<Release>(entityName: "Release")
-            let releases = (try? context.fetch(request)) ?? []
-            return releases.map(ReleaseEntity.init(release:))
-        }
-        let index = CSSearchableIndex(name: Self.spotlightIndexName)
         do {
-            try await index.deleteAllSearchableItems()
-            if !entities.isEmpty {
-                try await index.indexAppEntities(entities)
-            }
+            try await SpotlightIndexService.replaceAll(from: persistenceController)
             UserDefaults.standard.set(true, forKey: Self.spotlightSeededKey)
         } catch {
             // Spotlight indexing is best-effort; a failure shouldn't disrupt the app.
@@ -158,22 +169,16 @@ final class AppModel {
 
     /// Adds or updates a single release in the Spotlight index.
     func indexRelease(discogsId: Int64, listType: String) async {
-        let context = persistenceController.container.newBackgroundContext()
-        let entity: ReleaseEntity? = await context.perform {
-            let request = NSFetchRequest<Release>(entityName: "Release")
-            request.predicate = NSPredicate(format: "discogsId == %lld AND listType == %@", discogsId, listType)
-            request.fetchLimit = 1
-            return (try? context.fetch(request).first).map(ReleaseEntity.init(release:))
-        }
-        guard let entity else { return }
-        try? await CSSearchableIndex(name: Self.spotlightIndexName).indexAppEntities([entity])
+        let entities = await SpotlightIndexService.entities(
+            identifiedBy: ["\(discogsId)-\(listType)"],
+            from: persistenceController
+        )
+        try? await SpotlightIndexService.donate(entities)
     }
 
     /// Removes a single release from the Spotlight index.
     func deindexRelease(discogsId: Int64, listType: String) async {
-        let id = "\(discogsId)-\(listType)"
-        try? await CSSearchableIndex(name: Self.spotlightIndexName)
-            .deleteAppEntities(identifiedBy: [id], ofType: ReleaseEntity.self)
+        try? await SpotlightIndexService.remove(discogsId: discogsId, listType: listType)
     }
 
     // MARK: - Randomizer

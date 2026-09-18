@@ -22,19 +22,18 @@ struct SmartCollectionRow: View {
             } message: {
                 Text("Are you sure you want to delete \"\(smartCollection.name ?? "")\"? This cannot be undone.")
             }
-            .alert(
-                "Delete Failed",
-                isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })
-            ) {
+            .alert("Delete Failed", item: $deleteError) { _ in
                 Button("OK", role: .cancel) {}
-            } message: {
-                Text(deleteError ?? "")
+            } message: { message in
+                Text(message)
             }
             // Recompute the badge when the query changes or any context save occurs,
             // rather than running a count fetch on every render.
             .task(id: smartCollection.query) { recomputeCount() }
-            .onReceive(NotificationCenter.default.publisher(for: .NSManagedObjectContextDidSave)) { _ in
-                recomputeCount()
+            .task {
+                for await _ in NotificationCenter.default.notifications(named: .NSManagedObjectContextDidSave) {
+                    recomputeCount()
+                }
             }
     }
 
