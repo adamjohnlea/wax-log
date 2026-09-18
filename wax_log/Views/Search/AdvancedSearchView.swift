@@ -16,9 +16,42 @@ struct AdvancedSearchView: View {
     @State private var ratingMin = 0
     @State private var barcode = ""
 
+    @State private var plainLanguage = ""
+    @State private var isTranslating = false
+    @State private var translationError: String?
+
+    /// Read once per presentation: Apple Intelligence availability doesn't
+    /// change while a sheet is open.
+    private let unavailableReason = NaturalLanguageSearchService.unavailableReason
+
     var body: some View {
         VStack(spacing: 0) {
             Form {
+                Section("Describe It") {
+                    HStack {
+                        TextField("jazz records from the 60s I rated highly", text: $plainLanguage)
+                            .onSubmit(translate)
+
+                        Button(action: translate) {
+                            if isTranslating {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Text("Fill In")
+                            }
+                        }
+                        .disabled(!canTranslate)
+                        .help("Turn this description into search fields using the on-device model")
+                    }
+                    .disabled(unavailableReason != nil)
+
+                    if let unavailableReason {
+                        Text(unavailableReason)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
                 Section("Text Fields") {
                     TextField("Artist", text: $artist)
                     TextField("Title", text: $title)
@@ -98,10 +131,56 @@ struct AdvancedSearchView: View {
             }
             .padding()
         }
-        .frame(width: 480, height: 520)
+        .frame(width: 480, height: 600)
         .onAppear {
             parseExistingQuery()
         }
+        .alert("Couldn’t Read That Search", item: $translationError) { _ in
+            Button("OK", role: .cancel) {}
+        } message: { message in
+            Text(message)
+        }
+    }
+
+    // MARK: - Plain-Language Translation
+
+    private var canTranslate: Bool {
+        unavailableReason == nil
+            && !isTranslating
+            && !plainLanguage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Asks the on-device model to turn `plainLanguage` into search fields.
+    /// The result populates the form rather than searching directly, so the
+    /// user reviews the query before it runs.
+    private func translate() {
+        guard canTranslate else { return }
+        let description = plainLanguage.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        isTranslating = true
+        Task {
+            do {
+                apply(try await NaturalLanguageSearchService.query(from: description))
+            } catch {
+                translationError = error.localizedDescription
+            }
+            isTranslating = false
+        }
+    }
+
+    /// Loads a translated query into the form. `barcode` is left alone — the
+    /// model doesn't produce one, so clearing it would discard user input.
+    private func apply(_ query: RecordSearchQuery) {
+        artist = query.artist
+        title = query.title
+        genre = query.genre
+        style = query.style
+        label = query.label
+        country = query.country
+        format = query.format
+        yearFrom = query.yearFrom > 0 ? String(query.yearFrom) : ""
+        yearTo = query.yearTo > 0 ? String(query.yearTo) : ""
+        ratingMin = query.ratingMin
     }
 
     // MARK: - Query Builder
@@ -190,5 +269,6 @@ struct AdvancedSearchView: View {
         yearTo = ""
         ratingMin = 0
         barcode = ""
+        plainLanguage = ""
     }
 }
