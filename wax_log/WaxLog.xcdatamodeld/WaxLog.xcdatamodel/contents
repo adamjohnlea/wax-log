@@ -30,6 +30,7 @@
         <attribute name="priceSuggestions" optional="YES" attributeType="String"/>
         <attribute name="rating" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="sleeveCondition" optional="YES" attributeType="String"/>
+        <attribute name="sortIndex" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="style" attributeType="String" defaultValueString=""/>
         <attribute name="title" attributeType="String" defaultValueString=""/>
         <attribute name="tracklist" optional="YES" attributeType="String"/>
